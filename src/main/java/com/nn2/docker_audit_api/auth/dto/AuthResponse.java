@@ -6,5 +6,8 @@ public record AuthResponse(
 		String fullName,
 		String role,
 		String roleLabel,
-		String homePath) {
+		String homePath,
+		String accessToken,
+		String tokenType,
+		String expiresAt) {
 }

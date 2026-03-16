@@ -12,12 +12,15 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nn2.docker_audit_api.auth.jwt.JwtAuthenticationFilter;
 import com.nn2.docker_audit_api.auth.model.RoleCode;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,9 +30,11 @@ import jakarta.servlet.http.HttpServletResponse;
 public class SecurityConfig {
 
 	private final ObjectMapper objectMapper;
+	private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-	public SecurityConfig(ObjectMapper objectMapper) {
+	public SecurityConfig(ObjectMapper objectMapper, JwtAuthenticationFilter jwtAuthenticationFilter) {
 		this.objectMapper = objectMapper;
+		this.jwtAuthenticationFilter = jwtAuthenticationFilter;
 	}
 
 	@Bean
@@ -46,11 +51,13 @@ public class SecurityConfig {
 			.httpBasic(AbstractHttpConfigurer::disable)
 			.formLogin(AbstractHttpConfigurer::disable)
 			.logout(AbstractHttpConfigurer::disable)
+			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.cors(Customizer.withDefaults())
 			.exceptionHandling(exceptionHandling -> exceptionHandling
 				.authenticationEntryPoint(jsonEntryPoint(HttpStatus.UNAUTHORIZED, "Authentication required"))
 				.accessDeniedHandler((request, response, exception) ->
 					writeJsonError(response, HttpStatus.FORBIDDEN, "Access denied")))
+			.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 			.build();
 	}
 

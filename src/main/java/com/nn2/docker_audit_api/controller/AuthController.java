@@ -2,12 +2,8 @@ package com.nn2.docker_audit_api.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,13 +13,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.nn2.docker_audit_api.auth.dto.AuthResponse;
+import com.nn2.docker_audit_api.auth.jwt.JwtPrincipal;
+import com.nn2.docker_audit_api.auth.jwt.JwtService;
 import com.nn2.docker_audit_api.auth.dto.LoginRequest;
 import com.nn2.docker_audit_api.auth.model.RoleCode;
 import com.nn2.docker_audit_api.auth.repository.AppUserRepository;
-import com.nn2.docker_audit_api.auth.security.DatabaseUserDetails;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 
 @Validated
@@ -33,14 +28,16 @@ public class AuthController {
 
 	private final AppUserRepository appUserRepository;
 	private final PasswordEncoder passwordEncoder;
+ 	private final JwtService jwtService;
 
-	public AuthController(AppUserRepository appUserRepository, PasswordEncoder passwordEncoder) {
+	public AuthController(AppUserRepository appUserRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
 		this.appUserRepository = appUserRepository;
 		this.passwordEncoder = passwordEncoder;
+		this.jwtService = jwtService;
 	}
 
 	@PostMapping("/login")
-	public AuthResponse login(@RequestBody @Valid LoginRequest request, HttpServletRequest httpRequest) {
+	public AuthResponse login(@RequestBody @Valid LoginRequest request) {
 		var user = appUserRepository.findByUsername(request.username())
 			.orElseThrow(() -> invalidCredentials());
 
@@ -48,46 +45,34 @@ public class AuthController {
 			throw invalidCredentials();
 		}
 
-		DatabaseUserDetails principal = new DatabaseUserDetails(user);
-		Authentication authentication = new UsernamePasswordAuthenticationToken(
-			principal,
-			null,
-			principal.getAuthorities());
-
-		SecurityContext context = SecurityContextHolder.createEmptyContext();
-		context.setAuthentication(authentication);
-		SecurityContextHolder.setContext(context);
-
-		HttpSession session = httpRequest.getSession(true);
-		session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
-
-		return toResponse(principal);
+		var token = jwtService.createToken(user);
+		JwtPrincipal principal = new JwtPrincipal(user.getId(), user.getUsername(), user.getFullName(), user.getRole().getCode());
+		return toResponse(principal, token.value(), token.expiresAt().toString());
 	}
 
 	@GetMapping("/me")
 	public AuthResponse me(Authentication authentication) {
-		return toResponse((DatabaseUserDetails) authentication.getPrincipal());
+		JwtPrincipal principal = (JwtPrincipal) authentication.getPrincipal();
+		return toResponse(principal, null, null);
 	}
 
 	@PostMapping("/logout")
-	public ResponseEntity<Void> logout(HttpServletRequest request) {
-		HttpSession session = request.getSession(false);
-		if (session != null) {
-			session.invalidate();
-		}
-		SecurityContextHolder.clearContext();
+	public ResponseEntity<Void> logout() {
 		return ResponseEntity.noContent().build();
 	}
 
-	private AuthResponse toResponse(DatabaseUserDetails principal) {
-		RoleCode role = principal.getRole();
+	private AuthResponse toResponse(JwtPrincipal principal, String accessToken, String expiresAt) {
+		RoleCode role = principal.role();
 		return new AuthResponse(
-			principal.getId(),
-			principal.getUsername(),
-			principal.getFullName(),
+			principal.id(),
+			principal.username(),
+			principal.fullName(),
 			role.name(),
 			roleLabel(role),
-			homePath(role));
+			homePath(role),
+			accessToken,
+			accessToken == null ? null : "Bearer",
+			expiresAt);
 	}
 
 	private String roleLabel(RoleCode role) {

@@ -5,12 +5,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
@@ -19,6 +20,9 @@ class AuthFlowIntegrationTests {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private ObjectMapper objectMapper;
 
 	@Test
 	void loginReturnsRoleAwarePayload() throws Exception {
@@ -32,12 +36,14 @@ class AuthFlowIntegrationTests {
 					"""))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.role").value("SECURITY_ENGINEER"))
-			.andExpect(jsonPath("$.homePath").value("/security-engineer"));
+			.andExpect(jsonPath("$.homePath").value("/security-engineer"))
+			.andExpect(jsonPath("$.accessToken").isNotEmpty())
+			.andExpect(jsonPath("$.tokenType").value("Bearer"));
 	}
 
 	@Test
 	void developerCannotOpenSuperAdminWorkspace() throws Exception {
-		MockHttpSession session = (MockHttpSession) mockMvc.perform(post("/api/auth/login")
+		String body = mockMvc.perform(post("/api/auth/login")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 					{
@@ -47,10 +53,14 @@ class AuthFlowIntegrationTests {
 					"""))
 			.andExpect(status().isOk())
 			.andReturn()
-			.getRequest()
-			.getSession(false);
+			.getResponse()
+			.getContentAsString();
 
-		mockMvc.perform(get("/api/pages/super-admin").session(session))
+		JsonNode response = objectMapper.readTree(body);
+		String accessToken = response.get("accessToken").asText();
+
+		mockMvc.perform(get("/api/pages/super-admin")
+				.header("Authorization", "Bearer " + accessToken))
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.message").value("Access denied"));
 	}
