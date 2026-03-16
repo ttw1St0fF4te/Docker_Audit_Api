@@ -1,0 +1,561 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-create-cis-rules
+      author: keluch
+      changes:
+        - createTable:
+            tableName: cis_rules
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: cis_code
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: TEXT
+              - column:
+                  name: severity
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: recommendation
+                  type: TEXT
+              - column:
+                  name: check_expression
+                  type: TEXT
+              - column:
+                  name: is_enabled
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 005-create-docker-hosts
+      author: keluch
+      changes:
+        - createTable:
+            tableName: docker_hosts
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: host_url
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: auth_type
+                  type: VARCHAR(20)
+              - column:
+                  name: cert_path
+                  type: VARCHAR(255)
+              - column:
+                  name: is_active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: docker_hosts
+            columnNames: host_url
+            constraintName: uq_docker_hosts_host_url
+
+  - changeSet:
+      id: 006-create-scans
+      author: keluch
+      changes:
+        - createTable:
+            tableName: scans
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: host_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: started_by
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: started_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: finished_at
+                  type: TIMESTAMP
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: total_containers
+                  type: INTEGER
+              - column:
+                  name: total_violations
+                  type: INTEGER
+              - column:
+                  name: critical_count
+                  type: INTEGER
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: high_count
+                  type: INTEGER
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: medium_count
+                  type: INTEGER
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: low_count
+                  type: INTEGER
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: scans
+            baseColumnNames: host_id
+            referencedTableName: docker_hosts
+            referencedColumnNames: id
+            constraintName: fk_scans_host
+        - addForeignKeyConstraint:
+            baseTableName: scans
+            baseColumnNames: started_by
+            referencedTableName: app_user
+            referencedColumnNames: id
+            constraintName: fk_scans_started_by_user
+        - createIndex:
+            tableName: scans
+            indexName: idx_scans_host_started_at
+            columns:
+              - column:
+                  name: host_id
+              - column:
+                  name: started_at
+
+  - changeSet:
+      id: 007-create-audit-schedules
+      author: keluch
+      changes:
+        - createTable:
+            tableName: audit_schedules
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: host_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: cron_expression
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_run
+                  type: TIMESTAMP
+              - column:
+                  name: next_run
+                  type: TIMESTAMP
+        - addForeignKeyConstraint:
+            baseTableName: audit_schedules
+            baseColumnNames: host_id
+            referencedTableName: docker_hosts
+            referencedColumnNames: id
+            constraintName: fk_audit_schedules_host
+        - createIndex:
+            tableName: audit_schedules
+            indexName: idx_audit_schedules_host_active
+            columns:
+              - column:
+                  name: host_id
+              - column:
+                  name: is_active
+
+  - changeSet:
+      id: 008-create-developer-notifications
+      author: keluch
+      changes:
+        - createTable:
+            tableName: developer_notifications
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: developer_user_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: scan_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: severity
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: message
+                  type: TEXT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_read
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: read_at
+                  type: TIMESTAMP
+        - addForeignKeyConstraint:
+            baseTableName: developer_notifications
+            baseColumnNames: developer_user_id
+            referencedTableName: app_user
+            referencedColumnNames: id
+            constraintName: fk_dev_notifications_user
+        - addForeignKeyConstraint:
+            baseTableName: developer_notifications
+            baseColumnNames: scan_id
+            referencedTableName: scans
+            referencedColumnNames: id
+            constraintName: fk_dev_notifications_scan
+        - createIndex:
+            tableName: developer_notifications
+            indexName: idx_dev_notifications_user_read
+            columns:
+              - column:
+                  name: developer_user_id
+              - column:
+                  name: is_read
+
+  - changeSet:
+      id: 009-seed-default-docker-host
+      author: keluch
+      preConditions:
+        onFail: MARK_RAN
+        not:
+          sqlCheck:
+            expectedResult: "1"
+            sql: SELECT COUNT(*) FROM docker_hosts WHERE host_url = 'unix:///var/run/docker.sock'
+      changes:
+        - insert:
+            tableName: docker_hosts
+            columns:
+              - column:
+                  name: name
+                  value: local-docker
+              - column:
+                  name: host_url
+                  value: unix:///var/run/docker.sock
+              - column:
+                  name: auth_type
+                  value: NONE
+              - column:
+                  name: is_active
+                  valueBoolean: true
+
+  - changeSet:
+      id: 010-seed-cis-rules-v1
+      author: keluch
+      preConditions:
+        onFail: MARK_RAN
+        sqlCheck:
+          expectedResult: "0"
+          sql: SELECT COUNT(*) FROM cis_rules
+      changes:
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.1 }
+              - column: { name: name, value: Do not disable AppArmor profile }
+              - column: { name: description, value: Container should not run with AppArmor profile unconfined }
+              - column: { name: severity, value: HIGH }
+              - column: { name: recommendation, value: Configure AppArmor profile and avoid unconfined mode }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.2 }
+              - column: { name: name, value: Do not disable SELinux label }
+              - column: { name: description, value: Avoid running containers with label disable option }
+              - column: { name: severity, value: HIGH }
+              - column: { name: recommendation, value: Remove label disable and use proper SELinux policies }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.3 }
+              - column: { name: name, value: Restrict Linux capabilities }
+              - column: { name: description, value: Containers should not add dangerous Linux capabilities }
+              - column: { name: severity, value: HIGH }
+              - column: { name: recommendation, value: Drop all unnecessary capabilities and allow only required set }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.4 }
+              - column: { name: name, value: Do not use privileged mode }
+              - column: { name: description, value: Container must not run with privileged=true }
+              - column: { name: severity, value: CRITICAL }
+              - column: { name: recommendation, value: Remove privileged mode from container configuration }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.5 }
+              - column: { name: name, value: Do not mount Docker socket inside container }
+              - column: { name: description, value: Mounting docker.sock gives host-level control }
+              - column: { name: severity, value: CRITICAL }
+              - column: { name: recommendation, value: Remove /var/run/docker.sock bind mount }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.6 }
+              - column: { name: name, value: Avoid host network mode }
+              - column: { name: description, value: Container should not use host network namespace }
+              - column: { name: severity, value: HIGH }
+              - column: { name: recommendation, value: Use bridge or user-defined network instead of host mode }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.7 }
+              - column: { name: name, value: Avoid host PID namespace }
+              - column: { name: description, value: Container should not share host PID namespace }
+              - column: { name: severity, value: HIGH }
+              - column: { name: recommendation, value: Disable host PID sharing }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.8 }
+              - column: { name: name, value: Avoid host IPC namespace }
+              - column: { name: description, value: Container should not share host IPC namespace }
+              - column: { name: severity, value: HIGH }
+              - column: { name: recommendation, value: Disable host IPC sharing }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.9 }
+              - column: { name: name, value: Avoid host UTS namespace }
+              - column: { name: description, value: Container should not share host UTS namespace }
+              - column: { name: severity, value: MEDIUM }
+              - column: { name: recommendation, value: Keep isolated UTS namespace for container }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.10 }
+              - column: { name: name, value: Use read-only root filesystem }
+              - column: { name: description, value: Writable root filesystem increases persistence risks }
+              - column: { name: severity, value: HIGH }
+              - column: { name: recommendation, value: Set read-only root filesystem and use writable volumes only where needed }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.11 }
+              - column: { name: name, value: Run as non-root user }
+              - column: { name: description, value: Container process should not run as root }
+              - column: { name: severity, value: HIGH }
+              - column: { name: recommendation, value: Configure non-root USER in image and runtime }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.12 }
+              - column: { name: name, value: Limit memory usage }
+              - column: { name: description, value: Container should have memory limits configured }
+              - column: { name: severity, value: MEDIUM }
+              - column: { name: recommendation, value: Set memory limits to prevent resource exhaustion }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.13 }
+              - column: { name: name, value: Limit CPU usage }
+              - column: { name: description, value: Container should have CPU limits configured }
+              - column: { name: severity, value: MEDIUM }
+              - column: { name: recommendation, value: Set CPU quota or CPU shares for controlled scheduling }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.14 }
+              - column: { name: name, value: Set healthcheck for container }
+              - column: { name: description, value: Healthcheck helps detect unhealthy container state }
+              - column: { name: severity, value: LOW }
+              - column: { name: recommendation, value: Define HEALTHCHECK in image or compose specification }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.15 }
+              - column: { name: name, value: Avoid using latest image tag }
+              - column: { name: description, value: Latest tags reduce reproducibility and traceability }
+              - column: { name: severity, value: LOW }
+              - column: { name: recommendation, value: Pin image to explicit immutable version tag }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.16 }
+              - column: { name: name, value: Do not expose Docker daemon over plain TCP }
+              - column: { name: description, value: Unencrypted remote API access is high risk }
+              - column: { name: severity, value: CRITICAL }
+              - column: { name: recommendation, value: Disable plain TCP daemon access or enable TLS }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.17 }
+              - column: { name: name, value: Drop NET_RAW capability }
+              - column: { name: description, value: NET_RAW can be abused for packet crafting attacks }
+              - column: { name: severity, value: MEDIUM }
+              - column: { name: recommendation, value: Explicitly drop NET_RAW capability unless required }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.18 }
+              - column: { name: name, value: Use seccomp profile }
+              - column: { name: description, value: Seccomp helps restrict unsafe syscalls }
+              - column: { name: severity, value: HIGH }
+              - column: { name: recommendation, value: Apply default or custom seccomp profile }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.19 }
+              - column: { name: name, value: Restrict volume mounts to required paths }
+              - column: { name: description, value: Broad host mounts increase data exposure }
+              - column: { name: severity, value: MEDIUM }
+              - column: { name: recommendation, value: Mount only required host paths with least privilege }
+              - column: { name: is_enabled, valueBoolean: true }
+        - insert:
+            tableName: cis_rules
+            columns:
+              - column: { name: cis_code, value: CIS-5.20 }
+              - column: { name: name, value: Minimize container restart policy abuse }
+              - column: { name: description, value: Inappropriate restart policies can hide unstable behavior }
+              - column: { name: severity, value: LOW }
+              - column: { name: recommendation, value: Use restart policies deliberately and monitor crash loops }
+              - column: { name: is_enabled, valueBoolean: true }
+
+  - changeSet:
+      id: 011-translate-stage1-seed-data-ru
+      author: keluch
+      changes:
+        - sql:
+            sql: |
+              UPDATE docker_hosts
+              SET name = 'Локальный Docker-хост'
+              WHERE host_url = 'unix:///var/run/docker.sock';
+
+              UPDATE cis_rules SET name = 'Не отключать профиль AppArmor', description = 'Контейнер не должен запускаться с профилем AppArmor в режиме unconfined', severity = 'HIGH', recommendation = 'Настройте профиль AppArmor и не используйте режим unconfined' WHERE cis_code = 'CIS-5.1';
+              UPDATE cis_rules SET name = 'Не отключать метки SELinux', description = 'Избегайте запуска контейнеров с отключенными метками SELinux', severity = 'HIGH', recommendation = 'Уберите отключение меток и используйте корректные политики SELinux' WHERE cis_code = 'CIS-5.2';
+              UPDATE cis_rules SET name = 'Ограничивать Linux capabilities', description = 'Контейнеры не должны добавлять опасные Linux capabilities', severity = 'HIGH', recommendation = 'Удалите все лишние capabilities и оставьте только необходимые' WHERE cis_code = 'CIS-5.3';
+              UPDATE cis_rules SET name = 'Не использовать привилегированный режим', description = 'Контейнер не должен запускаться с privileged=true', severity = 'CRITICAL', recommendation = 'Уберите privileged=true из конфигурации контейнера' WHERE cis_code = 'CIS-5.4';
+              UPDATE cis_rules SET name = 'Не монтировать Docker socket внутрь контейнера', description = 'Монтирование docker.sock дает контроль уровня хоста', severity = 'CRITICAL', recommendation = 'Удалите bind mount /var/run/docker.sock' WHERE cis_code = 'CIS-5.5';
+              UPDATE cis_rules SET name = 'Избегать network mode host', description = 'Контейнер не должен использовать сетевой namespace хоста', severity = 'HIGH', recommendation = 'Используйте bridge или пользовательскую сеть вместо host mode' WHERE cis_code = 'CIS-5.6';
+              UPDATE cis_rules SET name = 'Избегать PID namespace хоста', description = 'Контейнер не должен разделять PID namespace хоста', severity = 'HIGH', recommendation = 'Отключите совместное использование PID namespace хоста' WHERE cis_code = 'CIS-5.7';
+              UPDATE cis_rules SET name = 'Избегать IPC namespace хоста', description = 'Контейнер не должен разделять IPC namespace хоста', severity = 'HIGH', recommendation = 'Отключите совместное использование IPC namespace хоста' WHERE cis_code = 'CIS-5.8';
+              UPDATE cis_rules SET name = 'Избегать UTS namespace хоста', description = 'Контейнер не должен разделять UTS namespace хоста', severity = 'MEDIUM', recommendation = 'Оставьте изолированный UTS namespace для контейнера' WHERE cis_code = 'CIS-5.9';
+              UPDATE cis_rules SET name = 'Использовать root filesystem только для чтения', description = 'Записываемый root filesystem повышает риск закрепления в системе', severity = 'HIGH', recommendation = 'Включите read-only root filesystem и оставьте запись только в нужные volume' WHERE cis_code = 'CIS-5.10';
+              UPDATE cis_rules SET name = 'Запускать контейнер от непривилегированного пользователя', description = 'Процессы контейнера не должны работать от root', severity = 'HIGH', recommendation = 'Настройте USER без root в образе и runtime' WHERE cis_code = 'CIS-5.11';
+              UPDATE cis_rules SET name = 'Ограничивать использование памяти', description = 'Для контейнера должны быть настроены лимиты памяти', severity = 'MEDIUM', recommendation = 'Установите лимиты памяти для защиты от истощения ресурсов' WHERE cis_code = 'CIS-5.12';
+              UPDATE cis_rules SET name = 'Ограничивать использование CPU', description = 'Для контейнера должны быть настроены лимиты CPU', severity = 'MEDIUM', recommendation = 'Установите CPU quota или CPU shares для контролируемого планирования' WHERE cis_code = 'CIS-5.13';
+              UPDATE cis_rules SET name = 'Настроить healthcheck для контейнера', description = 'Healthcheck помогает обнаруживать нездоровое состояние контейнера', severity = 'LOW', recommendation = 'Определите HEALTHCHECK в образе или в compose-конфигурации' WHERE cis_code = 'CIS-5.14';
+              UPDATE cis_rules SET name = 'Не использовать тег latest для образа', description = 'Тег latest снижает воспроизводимость и трассируемость', severity = 'LOW', recommendation = 'Закрепляйте образ на конкретной неизменяемой версии' WHERE cis_code = 'CIS-5.15';
+              UPDATE cis_rules SET name = 'Не открывать Docker daemon по незащищенному TCP', description = 'Нешифрованный удаленный доступ к API Docker несет высокий риск', severity = 'CRITICAL', recommendation = 'Отключите незащищенный TCP доступ или включите TLS' WHERE cis_code = 'CIS-5.16';
+              UPDATE cis_rules SET name = 'Удалять capability NET_RAW', description = 'NET_RAW может использоваться для атак через генерацию сетевых пакетов', severity = 'MEDIUM', recommendation = 'Явно удалите capability NET_RAW, если она не требуется' WHERE cis_code = 'CIS-5.17';
+              UPDATE cis_rules SET name = 'Использовать seccomp-профиль', description = 'Seccomp помогает ограничивать небезопасные системные вызовы', severity = 'HIGH', recommendation = 'Примените стандартный или кастомный seccomp-профиль' WHERE cis_code = 'CIS-5.18';
+              UPDATE cis_rules SET name = 'Ограничивать монтирование host volume только нужными путями', description = 'Широкие host mounts увеличивают риск утечки данных', severity = 'MEDIUM', recommendation = 'Монтируйте только необходимые пути хоста по принципу минимальных привилегий' WHERE cis_code = 'CIS-5.19';
+              UPDATE cis_rules SET name = 'Минимизировать злоупотребление restart policy', description = 'Некорректная restart policy может скрывать нестабильное поведение', severity = 'LOW', recommendation = 'Настраивайте restart policy осознанно и контролируйте crash loops' WHERE cis_code = 'CIS-5.20';

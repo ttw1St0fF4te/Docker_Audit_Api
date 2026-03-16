@@ -146,3 +146,6 @@ databaseChangeLog:
             referencedTableName: app_role
             referencedColumnNames: id
             constraintName: fk_app_user_role
+
+  - include:
+      file: db/changelog/004-security-engineer-stage1.yaml

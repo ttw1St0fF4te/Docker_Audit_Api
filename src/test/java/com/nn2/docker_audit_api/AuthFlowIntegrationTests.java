@@ -62,6 +62,55 @@ class AuthFlowIntegrationTests {
 		mockMvc.perform(get("/api/pages/super-admin")
 				.header("Authorization", "Bearer " + accessToken))
 			.andExpect(status().isForbidden())
-			.andExpect(jsonPath("$.message").value("Access denied"));
+			.andExpect(jsonPath("$.message").value("Доступ запрещен"));
+	}
+
+	@Test
+	void securityEngineerContractEndpointsAreRoleProtected() throws Exception {
+		String engineerBody = mockMvc.perform(post("/api/auth/login")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+					  "username": "engineer",
+					  "password": "engineer123"
+					}
+					"""))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+
+		String engineerToken = objectMapper.readTree(engineerBody).get("accessToken").asText();
+
+		mockMvc.perform(post("/api/security/audits/run")
+				.header("Authorization", "Bearer " + engineerToken)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+					  "hostId": 1
+					}
+					"""))
+			.andExpect(status().isAccepted())
+			.andExpect(jsonPath("$.status").value("QUEUED"));
+
+		String developerBody = mockMvc.perform(post("/api/auth/login")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+					  "username": "developer",
+					  "password": "developer123"
+					}
+					"""))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+
+		String developerToken = objectMapper.readTree(developerBody).get("accessToken").asText();
+
+		mockMvc.perform(get("/api/security/audits/recent")
+				.header("Authorization", "Bearer " + developerToken))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.message").value("Доступ запрещен"));
 	}
 }

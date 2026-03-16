@@ -44,6 +44,8 @@ public class SecurityConfig {
 			.authorizeHttpRequests(authorize -> authorize
 				.requestMatchers("/error", "/api/health", "/api/auth/login").permitAll()
 				.requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
+				.requestMatchers("/api/security/**")
+					.hasAnyRole(RoleCode.SECURITY_ENGINEER.name(), RoleCode.SUPER_ADMIN.name())
 				.requestMatchers("/api/pages/security-engineer").hasRole(RoleCode.SECURITY_ENGINEER.name())
 				.requestMatchers("/api/pages/developer").hasRole(RoleCode.DEVELOPER.name())
 				.requestMatchers("/api/pages/super-admin").hasRole(RoleCode.SUPER_ADMIN.name())
@@ -54,9 +56,9 @@ public class SecurityConfig {
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.cors(Customizer.withDefaults())
 			.exceptionHandling(exceptionHandling -> exceptionHandling
-				.authenticationEntryPoint(jsonEntryPoint(HttpStatus.UNAUTHORIZED, "Authentication required"))
+				.authenticationEntryPoint(jsonEntryPoint(HttpStatus.UNAUTHORIZED, "Требуется авторизация"))
 				.accessDeniedHandler((request, response, exception) ->
-					writeJsonError(response, HttpStatus.FORBIDDEN, "Access denied")))
+					writeJsonError(response, HttpStatus.FORBIDDEN, "Доступ запрещен")))
 			.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 			.build();
 	}
