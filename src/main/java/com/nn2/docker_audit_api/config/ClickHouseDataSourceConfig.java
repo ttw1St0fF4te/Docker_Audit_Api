@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 @Configuration
 public class ClickHouseDataSourceConfig {
@@ -42,7 +43,12 @@ public class ClickHouseDataSourceConfig {
 	@Bean
 	DataSource clickHouseDataSource(
 			@Qualifier("clickHouseDataSourceProperties") DataSourceProperties properties) {
-		return properties.initializeDataSourceBuilder().build();
+		DriverManagerDataSource dataSource = new DriverManagerDataSource();
+		dataSource.setDriverClassName(properties.getDriverClassName());
+		dataSource.setUrl(properties.getUrl());
+		dataSource.setUsername(properties.getUsername());
+		dataSource.setPassword(properties.getPassword());
+		return dataSource;
 	}
 
 	@Bean

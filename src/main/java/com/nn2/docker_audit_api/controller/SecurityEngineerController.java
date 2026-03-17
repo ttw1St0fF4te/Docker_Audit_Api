@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,7 +26,10 @@ import com.nn2.docker_audit_api.securityengineer.dto.AuditStatusResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.AuditViolationSummaryResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.ContainerCisAuditResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.RecentAuditsResponse;
+import com.nn2.docker_audit_api.securityengineer.entity.ScanEntity;
+import com.nn2.docker_audit_api.securityengineer.service.AuditService;
 import com.nn2.docker_audit_api.securityengineer.service.CisRuleEngine;
+import com.nn2.docker_audit_api.auth.jwt.JwtPrincipal;
 
 import jakarta.validation.Valid;
 
@@ -37,70 +41,51 @@ public class SecurityEngineerController {
 	private final DockerAuditProperties dockerAuditProperties;
 	private final DockerClientService dockerClientService;
 	private final CisRuleEngine cisRuleEngine;
+	private final AuditService auditService;
 
 	public SecurityEngineerController(
 			DockerAuditProperties dockerAuditProperties,
 			DockerClientService dockerClientService,
-			CisRuleEngine cisRuleEngine) {
+			CisRuleEngine cisRuleEngine,
+			AuditService auditService) {
 		this.dockerAuditProperties = dockerAuditProperties;
 		this.dockerClientService = dockerClientService;
 		this.cisRuleEngine = cisRuleEngine;
+		this.auditService = auditService;
 	}
 
 	@PostMapping("/audits/run")
 	@ResponseStatus(HttpStatus.ACCEPTED)
-	public AuditRunResponse runAudit(@RequestBody @Valid AuditRunRequest request) {
+	public AuditRunResponse runAudit(@RequestBody @Valid AuditRunRequest request, Authentication authentication) {
+		JwtPrincipal principal = (JwtPrincipal) authentication.getPrincipal();
+		AuditService.AuditExecutionResult executionResult = auditService.runAudit(request.hostId(), principal.id());
+		ScanEntity completedScan = executionResult.scan();
+		String message = "COMPLETED".equals(completedScan.getStatus())
+			? "Скан завершен. Метаданные сохранены в PostgreSQL, детали - в ClickHouse."
+			: "Скан завершился с ошибкой. Статус и метаданные сохранены в PostgreSQL. Причина: "
+				+ (executionResult.errorMessage() == null ? "неизвестно" : executionResult.errorMessage());
 		return new AuditRunResponse(
-			0L,
+			completedScan.getId(),
 			request.hostId(),
-			"QUEUED",
-			Instant.now().toString(),
-			"Контракт endpoint готов. Реализация запуска аудита будет добавлена на следующих этапах.");
+			completedScan.getStatus(),
+			completedScan.getStartedAt() != null ? completedScan.getStartedAt().toString() : Instant.now().toString(),
+			message);
 	}
 
 	@GetMapping("/audits/{id}")
 	public AuditStatusResponse getAuditStatus(@PathVariable Long id) {
-		return new AuditStatusResponse(
-			id,
-			1L,
-			"NOT_IMPLEMENTED",
-			null,
-			null,
-			0,
-			0,
-			0,
-			0,
-			0,
-			0);
+		return auditService.getStatus(id);
 	}
 
 	@GetMapping("/audits/recent")
 	public RecentAuditsResponse recentAudits() {
-		AuditStatusResponse sample = new AuditStatusResponse(
-			1L,
-			1L,
-			"COMPLETED",
-			"2026-03-16T10:00:00Z",
-			"2026-03-16T10:02:30Z",
-			8,
-			3,
-			1,
-			1,
-			1,
-			0);
-		return new RecentAuditsResponse(List.of(sample), 1L);
+		List<AuditStatusResponse> items = auditService.getRecentStatuses();
+		return new RecentAuditsResponse(items, (long) items.size());
 	}
 
 	@GetMapping("/audits/{id}/summary")
 	public AuditViolationSummaryResponse auditSummary(@PathVariable Long id) {
-		return new AuditViolationSummaryResponse(
-			id,
-			100,
-			3,
-			1,
-			1,
-			1,
-			0);
+		return auditService.getSummary(id);
 	}
 
 	@GetMapping("/config/docker-host")

@@ -91,7 +91,8 @@ class AuthFlowIntegrationTests {
 					}
 					"""))
 			.andExpect(status().isAccepted())
-			.andExpect(jsonPath("$.status").value("QUEUED"));
+			.andExpect(jsonPath("$.scanId").isNumber())
+			.andExpect(jsonPath("$.status").isNotEmpty());
 
 		String developerBody = mockMvc.perform(post("/api/auth/login")
 				.contentType(MediaType.APPLICATION_JSON)
