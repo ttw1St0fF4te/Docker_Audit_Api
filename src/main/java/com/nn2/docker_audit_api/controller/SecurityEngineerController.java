@@ -23,7 +23,9 @@ import com.nn2.docker_audit_api.securityengineer.dto.AuditRunRequest;
 import com.nn2.docker_audit_api.securityengineer.dto.AuditRunResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.AuditStatusResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.AuditViolationSummaryResponse;
+import com.nn2.docker_audit_api.securityengineer.dto.ContainerCisAuditResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.RecentAuditsResponse;
+import com.nn2.docker_audit_api.securityengineer.service.CisRuleEngine;
 
 import jakarta.validation.Valid;
 
@@ -34,10 +36,15 @@ public class SecurityEngineerController {
 
 	private final DockerAuditProperties dockerAuditProperties;
 	private final DockerClientService dockerClientService;
+	private final CisRuleEngine cisRuleEngine;
 
-	public SecurityEngineerController(DockerAuditProperties dockerAuditProperties, DockerClientService dockerClientService) {
+	public SecurityEngineerController(
+			DockerAuditProperties dockerAuditProperties,
+			DockerClientService dockerClientService,
+			CisRuleEngine cisRuleEngine) {
 		this.dockerAuditProperties = dockerAuditProperties;
 		this.dockerClientService = dockerClientService;
+		this.cisRuleEngine = cisRuleEngine;
 	}
 
 	@PostMapping("/audits/run")
@@ -107,6 +114,17 @@ public class SecurityEngineerController {
 			return dockerClientService.listContainerSnapshots(hostUrl);
 		} catch (DockerConnectionException ex) {
 			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, ex.getMessage());
+		}
+	}
+
+	@GetMapping("/docker/audit-preview")
+	public List<ContainerCisAuditResponse> dockerAuditPreview(@RequestParam(required = false) String hostUrl) {
+		try {
+			return cisRuleEngine.evaluateActiveRules(hostUrl);
+		} catch (DockerConnectionException ex) {
+			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, ex.getMessage());
+		} catch (IllegalStateException ex) {
+			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
 		}
 	}
 }

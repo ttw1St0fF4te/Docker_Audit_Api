@@ -20,6 +20,11 @@ public record ContainerSnapshot(
 		String healthStatus,
 		Long memoryLimit,
 		Long nanoCpuLimit,
+		List<String> securityOptions,
+		List<String> capAdd,
+		List<String> capDrop,
+		List<String> mountSources,
+		String restartPolicyName,
 		boolean dockerSocketMounted,
 		List<ContainerPortSnapshot> ports) {
 }

@@ -9,6 +9,9 @@ import java.util.Set;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.net.URI;
+import java.util.Locale;
+import java.util.stream.Collectors;
+import java.util.Arrays;
 
 import org.springframework.stereotype.Service;
 
@@ -138,6 +141,43 @@ public class DockerClientService {
 		var config = inspect.getConfig();
 		var state = inspect.getState();
 
+		List<String> securityOptions = new ArrayList<>();
+		if (hostConfig != null && hostConfig.getSecurityOpts() != null) {
+			for (String option : hostConfig.getSecurityOpts()) {
+				if (option != null && !option.isBlank()) {
+					securityOptions.add(option.toLowerCase(Locale.ROOT));
+				}
+			}
+		}
+
+		List<String> capAdd = new ArrayList<>();
+		if (hostConfig != null && hostConfig.getCapAdd() != null) {
+			capAdd = Arrays.stream(hostConfig.getCapAdd())
+				.map(Enum::name)
+				.collect(Collectors.toCollection(ArrayList::new));
+		}
+
+		List<String> capDrop = new ArrayList<>();
+		if (hostConfig != null && hostConfig.getCapDrop() != null) {
+			capDrop = Arrays.stream(hostConfig.getCapDrop())
+				.map(Enum::name)
+				.collect(Collectors.toCollection(ArrayList::new));
+		}
+
+		List<String> mountSources = new ArrayList<>();
+		if (inspect.getMounts() != null) {
+			inspect.getMounts().forEach(mount -> {
+				if (mount.getSource() != null && !mount.getSource().isBlank()) {
+					mountSources.add(mount.getSource());
+				}
+			});
+		}
+
+		String restartPolicyName = null;
+		if (hostConfig != null && hostConfig.getRestartPolicy() != null) {
+			restartPolicyName = hostConfig.getRestartPolicy().getName();
+		}
+
 		boolean hasDockerSocketMount = inspect.getMounts() != null
 			&& inspect.getMounts().stream().anyMatch(m -> DOCKER_SOCKET_PATH.equals(m.getSource())
 				|| DOCKER_SOCKET_PATH.equals(m.getDestination() != null ? m.getDestination().getPath() : null));
@@ -175,6 +215,11 @@ public class DockerClientService {
 			state != null && state.getHealth() != null ? state.getHealth().getStatus() : null,
 			hostConfig != null ? hostConfig.getMemory() : null,
 			hostConfig != null ? hostConfig.getNanoCPUs() : null,
+			securityOptions,
+			capAdd,
+			capDrop,
+			mountSources,
+			restartPolicyName,
 			hasDockerSocketMount,
 			ports);
 	}
