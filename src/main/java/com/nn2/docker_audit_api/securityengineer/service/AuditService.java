@@ -24,6 +24,7 @@ import com.nn2.docker_audit_api.securityengineer.dto.ContainerCisAuditResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.CisRuleCheckResultResponse;
 import com.nn2.docker_audit_api.securityengineer.entity.DockerHostEntity;
 import com.nn2.docker_audit_api.securityengineer.entity.ScanEntity;
+import com.nn2.docker_audit_api.developer.service.NotificationDispatcher;
 import com.nn2.docker_audit_api.securityengineer.repository.DockerHostRepository;
 import com.nn2.docker_audit_api.securityengineer.repository.ScanRepository;
 
@@ -36,15 +37,18 @@ public class AuditService {
     private final DockerHostRepository dockerHostRepository;
     private final CisRuleEngine cisRuleEngine;
     private final JdbcTemplate clickHouseJdbcTemplate;
+    private final NotificationDispatcher notificationDispatcher;
 
     public AuditService(
             ScanRepository scanRepository,
             DockerHostRepository dockerHostRepository,
             CisRuleEngine cisRuleEngine,
+            NotificationDispatcher notificationDispatcher,
             @Qualifier("clickHouseJdbcTemplate") JdbcTemplate clickHouseJdbcTemplate) {
         this.scanRepository = scanRepository;
         this.dockerHostRepository = dockerHostRepository;
         this.cisRuleEngine = cisRuleEngine;
+        this.notificationDispatcher = notificationDispatcher;
         this.clickHouseJdbcTemplate = clickHouseJdbcTemplate;
     }
 
@@ -229,7 +233,9 @@ public class AuditService {
         scan.setHighCount(severityCounters.getOrDefault("HIGH", 0));
         scan.setMediumCount(severityCounters.getOrDefault("MEDIUM", 0));
         scan.setLowCount(severityCounters.getOrDefault("LOW", 0));
-        return scanRepository.save(scan);
+        ScanEntity saved = scanRepository.save(scan);
+        notificationDispatcher.dispatchForCompletedScan(saved);
+        return saved;
     }
 
     @Transactional

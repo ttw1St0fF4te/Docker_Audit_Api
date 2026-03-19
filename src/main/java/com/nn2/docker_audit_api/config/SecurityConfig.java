@@ -46,6 +46,8 @@ public class SecurityConfig {
 				.requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
 				.requestMatchers("/api/security/**", "/api/security-engineer/**")
 					.hasAnyRole(RoleCode.SECURITY_ENGINEER.name(), RoleCode.SUPER_ADMIN.name())
+				.requestMatchers("/api/developer/notifications/**")
+					.hasRole(RoleCode.DEVELOPER.name())
 				.requestMatchers("/api/pages/security-engineer").hasRole(RoleCode.SECURITY_ENGINEER.name())
 				.requestMatchers("/api/pages/developer").hasRole(RoleCode.DEVELOPER.name())
 				.requestMatchers("/api/pages/super-admin").hasRole(RoleCode.SUPER_ADMIN.name())
