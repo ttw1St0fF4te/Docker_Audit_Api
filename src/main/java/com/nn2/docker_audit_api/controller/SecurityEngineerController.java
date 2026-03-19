@@ -35,7 +35,7 @@ import jakarta.validation.Valid;
 
 @Validated
 @RestController
-@RequestMapping("/api/security")
+@RequestMapping({"/api/security", "/api/security-engineer"})
 public class SecurityEngineerController {
 
 	private final DockerAuditProperties dockerAuditProperties;
@@ -72,8 +72,8 @@ public class SecurityEngineerController {
 			message);
 	}
 
-	@GetMapping("/audits/{id}")
-	public AuditStatusResponse getAuditStatus(@PathVariable Long id) {
+	@GetMapping("/audits/{id:\\d+}")
+	public AuditStatusResponse getAuditStatus(@PathVariable("id") Long id) {
 		return auditService.getStatus(id);
 	}
 
@@ -83,8 +83,8 @@ public class SecurityEngineerController {
 		return new RecentAuditsResponse(items, (long) items.size());
 	}
 
-	@GetMapping("/audits/{id}/summary")
-	public AuditViolationSummaryResponse auditSummary(@PathVariable Long id) {
+	@GetMapping("/audits/{id:\\d+}/summary")
+	public AuditViolationSummaryResponse auditSummary(@PathVariable("id") Long id) {
 		return auditService.getSummary(id);
 	}
 
@@ -94,7 +94,7 @@ public class SecurityEngineerController {
 	}
 
 	@GetMapping("/docker/containers")
-	public List<ContainerSnapshot> dockerContainers(@RequestParam(required = false) String hostUrl) {
+	public List<ContainerSnapshot> dockerContainers(@RequestParam(name = "hostUrl", required = false) String hostUrl) {
 		try {
 			return dockerClientService.listContainerSnapshots(hostUrl);
 		} catch (DockerConnectionException ex) {
@@ -103,7 +103,7 @@ public class SecurityEngineerController {
 	}
 
 	@GetMapping("/docker/audit-preview")
-	public List<ContainerCisAuditResponse> dockerAuditPreview(@RequestParam(required = false) String hostUrl) {
+	public List<ContainerCisAuditResponse> dockerAuditPreview(@RequestParam(name = "hostUrl", required = false) String hostUrl) {
 		try {
 			return cisRuleEngine.evaluateActiveRules(hostUrl);
 		} catch (DockerConnectionException ex) {

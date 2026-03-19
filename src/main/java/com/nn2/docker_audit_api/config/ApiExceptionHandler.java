@@ -2,11 +2,17 @@ package com.nn2.docker_audit_api.config;
 
 import java.util.Map;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
@@ -26,5 +32,17 @@ public class ApiExceptionHandler {
 			.map(error -> error.getDefaultMessage() != null ? error.getDefaultMessage() : "Validation failed")
 			.orElse("Validation failed");
 		return ResponseEntity.badRequest().body(Map.of("message", message));
+	}
+
+	@ExceptionHandler({
+		MethodArgumentTypeMismatchException.class,
+		ServletRequestBindingException.class,
+		HttpMessageNotReadableException.class,
+		BindException.class,
+		HandlerMethodValidationException.class
+	})
+	ResponseEntity<Map<String, String>> handleBadRequest(Exception exception) {
+		String message = exception.getMessage() != null ? exception.getMessage() : "Некорректный запрос";
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", message));
 	}
 }

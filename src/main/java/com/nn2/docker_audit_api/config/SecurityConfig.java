@@ -44,7 +44,7 @@ public class SecurityConfig {
 			.authorizeHttpRequests(authorize -> authorize
 				.requestMatchers("/error", "/api/health", "/api/auth/login").permitAll()
 				.requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
-				.requestMatchers("/api/security/**")
+				.requestMatchers("/api/security/**", "/api/security-engineer/**")
 					.hasAnyRole(RoleCode.SECURITY_ENGINEER.name(), RoleCode.SUPER_ADMIN.name())
 				.requestMatchers("/api/pages/security-engineer").hasRole(RoleCode.SECURITY_ENGINEER.name())
 				.requestMatchers("/api/pages/developer").hasRole(RoleCode.DEVELOPER.name())
