@@ -1,0 +1,41 @@
+databaseChangeLog:
+  - changeSet:
+      id: 012-create-notification-settings
+      author: keluch
+      changes:
+        - createTable:
+            tableName: security_notification_settings
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: min_severity
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 013-seed-notification-settings-default
+      author: keluch
+      preConditions:
+        onFail: MARK_RAN
+        not:
+          sqlCheck:
+            expectedResult: "1"
+            sql: SELECT COUNT(*) FROM security_notification_settings WHERE id = 1
+      changes:
+        - insert:
+            tableName: security_notification_settings
+            columns:
+              - column: { name: id, valueNumeric: 1 }
+              - column: { name: min_severity, value: HIGH }

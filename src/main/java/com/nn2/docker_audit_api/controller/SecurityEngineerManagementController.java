@@ -16,6 +16,8 @@ import com.nn2.docker_audit_api.securityengineer.dto.CisRuleEnabledPatchRequest;
 import com.nn2.docker_audit_api.securityengineer.dto.CisRuleItemResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.CisRulesPageResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.DockerHostsPageResponse;
+import com.nn2.docker_audit_api.securityengineer.dto.NotificationSettingsResponse;
+import com.nn2.docker_audit_api.securityengineer.dto.NotificationSettingsUpdateRequest;
 import com.nn2.docker_audit_api.securityengineer.service.SecurityEngineerManagementService;
 
 import jakarta.validation.Valid;
@@ -58,5 +60,16 @@ public class SecurityEngineerManagementController {
     @PostMapping("/schedules")
     public AuditScheduleResponse upsertSchedule(@RequestBody @Valid AuditScheduleUpsertRequest request) {
         return managementService.upsertSchedule(request);
+    }
+
+    @GetMapping("/notification-settings")
+    public NotificationSettingsResponse getNotificationSettings() {
+        return managementService.getNotificationSettings();
+    }
+
+    @PatchMapping("/notification-settings")
+    public NotificationSettingsResponse updateNotificationSettings(
+            @RequestBody @Valid NotificationSettingsUpdateRequest request) {
+        return managementService.updateNotificationSettings(request.minSeverity());
     }
 }

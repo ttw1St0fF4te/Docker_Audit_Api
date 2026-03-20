@@ -149,3 +149,6 @@ databaseChangeLog:
 
   - include:
       file: db/changelog/004-security-engineer-stage1.yaml
+
+  - include:
+      file: db/changelog/012-notification-severity-settings.yaml

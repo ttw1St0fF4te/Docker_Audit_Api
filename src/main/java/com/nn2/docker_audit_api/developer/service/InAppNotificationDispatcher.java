@@ -12,18 +12,23 @@ import com.nn2.docker_audit_api.auth.repository.AppUserRepository;
 import com.nn2.docker_audit_api.developer.entity.DeveloperNotificationEntity;
 import com.nn2.docker_audit_api.developer.repository.DeveloperNotificationRepository;
 import com.nn2.docker_audit_api.securityengineer.entity.ScanEntity;
+import com.nn2.docker_audit_api.securityengineer.model.NotificationSeverityLevel;
+import com.nn2.docker_audit_api.securityengineer.service.NotificationSettingsService;
 
 @Component
 public class InAppNotificationDispatcher implements NotificationDispatcher {
 
     private final AppUserRepository appUserRepository;
     private final DeveloperNotificationRepository developerNotificationRepository;
+    private final NotificationSettingsService notificationSettingsService;
 
     public InAppNotificationDispatcher(
             AppUserRepository appUserRepository,
-            DeveloperNotificationRepository developerNotificationRepository) {
+            DeveloperNotificationRepository developerNotificationRepository,
+            NotificationSettingsService notificationSettingsService) {
         this.appUserRepository = appUserRepository;
         this.developerNotificationRepository = developerNotificationRepository;
+        this.notificationSettingsService = notificationSettingsService;
     }
 
     @Override
@@ -35,16 +40,21 @@ public class InAppNotificationDispatcher implements NotificationDispatcher {
 
         int critical = safe(scan.getCriticalCount());
         int high = safe(scan.getHighCount());
+        int medium = safe(scan.getMediumCount());
+        int low = safe(scan.getLowCount());
 
-        if (critical <= 0 && high <= 0) {
+        NotificationSeverityLevel threshold = notificationSettingsService.getThreshold();
+        if (!shouldNotify(threshold, critical, high, medium, low)) {
             return;
         }
 
-        String severity = critical > 0 ? "CRITICAL" : "HIGH";
+        String severity = highestPresentSeverity(critical, high, medium, low);
         String title = "Найдены " + severity + " нарушения в скане #" + scan.getId();
         String message = "Скан #" + scan.getId()
             + ": CRITICAL=" + critical
             + ", HIGH=" + high
+            + ", MEDIUM=" + medium
+            + ", LOW=" + low
             + ". Проверьте детали по отчету сканирования.";
 
         List<AppUser> developers = appUserRepository.findByRoleCodeAndEnabledTrue(RoleCode.DEVELOPER);
@@ -80,5 +90,28 @@ public class InAppNotificationDispatcher implements NotificationDispatcher {
 
     private int safe(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private boolean shouldNotify(NotificationSeverityLevel threshold, int critical, int high, int medium, int low) {
+        return (critical > 0 && threshold.includes("CRITICAL"))
+            || (high > 0 && threshold.includes("HIGH"))
+            || (medium > 0 && threshold.includes("MEDIUM"))
+            || (low > 0 && threshold.includes("LOW"));
+    }
+
+    private String highestPresentSeverity(int critical, int high, int medium, int low) {
+        if (critical > 0) {
+            return "CRITICAL";
+        }
+        if (high > 0) {
+            return "HIGH";
+        }
+        if (medium > 0) {
+            return "MEDIUM";
+        }
+        if (low > 0) {
+            return "LOW";
+        }
+        return "UNKNOWN";
     }
 }

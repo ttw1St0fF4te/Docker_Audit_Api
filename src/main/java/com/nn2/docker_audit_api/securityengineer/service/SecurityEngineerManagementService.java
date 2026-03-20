@@ -20,6 +20,7 @@ import com.nn2.docker_audit_api.securityengineer.dto.CisRuleItemResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.CisRulesPageResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.DockerHostItemResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.DockerHostsPageResponse;
+import com.nn2.docker_audit_api.securityengineer.dto.NotificationSettingsResponse;
 import com.nn2.docker_audit_api.securityengineer.entity.AuditScheduleEntity;
 import com.nn2.docker_audit_api.securityengineer.entity.CisRuleEntity;
 import com.nn2.docker_audit_api.securityengineer.entity.DockerHostEntity;
@@ -37,14 +38,25 @@ public class SecurityEngineerManagementService {
     private final CisRuleRepository cisRuleRepository;
     private final DockerHostRepository dockerHostRepository;
     private final AuditScheduleRepository auditScheduleRepository;
+    private final NotificationSettingsService notificationSettingsService;
 
     public SecurityEngineerManagementService(
             CisRuleRepository cisRuleRepository,
             DockerHostRepository dockerHostRepository,
-            AuditScheduleRepository auditScheduleRepository) {
+            AuditScheduleRepository auditScheduleRepository,
+            NotificationSettingsService notificationSettingsService) {
         this.cisRuleRepository = cisRuleRepository;
         this.dockerHostRepository = dockerHostRepository;
         this.auditScheduleRepository = auditScheduleRepository;
+        this.notificationSettingsService = notificationSettingsService;
+    }
+
+    public NotificationSettingsResponse getNotificationSettings() {
+        return notificationSettingsService.getSettings();
+    }
+
+    public NotificationSettingsResponse updateNotificationSettings(String minSeverity) {
+        return notificationSettingsService.updateSettings(minSeverity);
     }
 
     public CisRulesPageResponse listRules(Integer page, Integer size, String severity, Boolean enabled) {
