@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.nn2.docker_audit_api.securityengineer.dto.AuditScheduleResponse;
+import com.nn2.docker_audit_api.securityengineer.dto.AuditSchedulesPageResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.AuditScheduleUpsertRequest;
 import com.nn2.docker_audit_api.securityengineer.dto.CisRuleItemResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.CisRulesPageResponse;
@@ -135,6 +136,30 @@ public class SecurityEngineerManagementService {
         }
         AuditScheduleEntity saved = auditScheduleRepository.save(schedule);
         return toScheduleResponse(saved);
+    }
+
+    public AuditSchedulesPageResponse listSchedules(Integer page, Integer size, Long hostId, Boolean active) {
+        int safePage = normalizePage(page);
+        int safeSize = normalizeSize(size);
+
+        List<AuditScheduleEntity> all = auditScheduleRepository.findAll(
+            Sort.by(Sort.Direction.ASC, "hostId").and(Sort.by(Sort.Direction.ASC, "id")));
+        Stream<AuditScheduleEntity> stream = all.stream();
+
+        if (hostId != null) {
+            stream = stream.filter(schedule -> hostId.equals(schedule.getHostId()));
+        }
+
+        if (active != null) {
+            stream = stream.filter(schedule -> schedule.isActive() == active);
+        }
+
+        List<AuditScheduleEntity> filtered = stream.toList();
+        List<AuditScheduleResponse> pagedItems = paginate(filtered, safePage, safeSize).stream()
+            .map(this::toScheduleResponse)
+            .toList();
+
+        return new AuditSchedulesPageResponse(pagedItems, filtered.size(), safePage, safeSize);
     }
 
     private CisRuleItemResponse toRuleItem(CisRuleEntity rule) {

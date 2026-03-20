@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.nn2.docker_audit_api.securityengineer.dto.AuditScheduleResponse;
+import com.nn2.docker_audit_api.securityengineer.dto.AuditSchedulesPageResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.AuditScheduleUpsertRequest;
 import com.nn2.docker_audit_api.securityengineer.dto.CisRuleEnabledPatchRequest;
 import com.nn2.docker_audit_api.securityengineer.dto.CisRuleItemResponse;
@@ -60,6 +61,15 @@ public class SecurityEngineerManagementController {
     @PostMapping("/schedules")
     public AuditScheduleResponse upsertSchedule(@RequestBody @Valid AuditScheduleUpsertRequest request) {
         return managementService.upsertSchedule(request);
+    }
+
+    @GetMapping("/schedules")
+    public AuditSchedulesPageResponse listSchedules(
+            @RequestParam(name = "page", required = false) Integer page,
+            @RequestParam(name = "size", required = false) Integer size,
+            @RequestParam(name = "hostId", required = false) Long hostId,
+            @RequestParam(name = "active", required = false) Boolean active) {
+        return managementService.listSchedules(page, size, hostId, active);
     }
 
     @GetMapping("/notification-settings")

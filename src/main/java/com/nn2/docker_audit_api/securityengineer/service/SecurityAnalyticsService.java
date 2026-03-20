@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -27,6 +28,7 @@ import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopRuleItemRespon
 import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopRulesResponse;
 import com.nn2.docker_audit_api.securityengineer.entity.DockerHostEntity;
 import com.nn2.docker_audit_api.securityengineer.repository.DockerHostRepository;
+import com.nn2.docker_audit_api.securityengineer.repository.ScanRepository;
 
 @Service
 public class SecurityAnalyticsService {
@@ -36,17 +38,26 @@ public class SecurityAnalyticsService {
 
     private final JdbcTemplate clickHouseJdbcTemplate;
     private final DockerHostRepository dockerHostRepository;
+    private final ScanRepository scanRepository;
 
     public SecurityAnalyticsService(
             @Qualifier("clickHouseJdbcTemplate") JdbcTemplate clickHouseJdbcTemplate,
-            DockerHostRepository dockerHostRepository) {
+            DockerHostRepository dockerHostRepository,
+            ScanRepository scanRepository) {
         this.clickHouseJdbcTemplate = clickHouseJdbcTemplate;
         this.dockerHostRepository = dockerHostRepository;
+        this.scanRepository = scanRepository;
     }
 
     public AnalyticsOverviewResponse getOverview(String fromRaw, String toRaw, Long hostId) {
         TimeRange range = resolveTimeRange(fromRaw, toRaw);
         validateHostId(hostId);
+        long totalScans = scanRepository.countAllByRange(range.from(), range.to(), hostId);
+        List<Long> completedScanIds = loadCompletedScanIds(range, hostId);
+
+        if (completedScanIds.isEmpty()) {
+            return new AnalyticsOverviewResponse(totalScans, 0, 0, 0, 0, 0, 0, 100.0d);
+        }
 
         String sql = """
             SELECT
@@ -61,12 +72,13 @@ public class SecurityAnalyticsService {
             FROM audit_analytics.violations_log
             WHERE timestamp >= toDateTime(?)
               AND timestamp < toDateTime(?)
-            """ + hostFilterClause(hostId);
+                            AND scan_id IN (%s)
+                        """.formatted(toInClause(completedScanIds));
 
-                Map<String, Object> row = clickHouseJdbcTemplate.queryForMap(sql, buildQueryArgs(range, hostId));
+                Map<String, Object> row = clickHouseJdbcTemplate.queryForMap(sql, buildQueryArgs(range));
 
         return new AnalyticsOverviewResponse(
-            asLong(row.get("total_scans")),
+                        totalScans,
             asLong(row.get("total_checks")),
             asLong(row.get("total_failed")),
             asLong(row.get("critical_count")),
@@ -80,6 +92,11 @@ public class SecurityAnalyticsService {
         TimeRange range = resolveTimeRange(fromRaw, toRaw);
         String bucket = normalizeBucket(bucketRaw);
         validateHostId(hostId);
+        List<Long> completedScanIds = loadCompletedScanIds(range, hostId);
+
+        if (completedScanIds.isEmpty()) {
+            return new SeverityTrendResponse(List.of(), bucket, range.from().toString(), range.to().toString());
+        }
 
         String bucketExpr = bucketExpression(bucket);
         String sql = """
@@ -93,14 +110,14 @@ public class SecurityAnalyticsService {
             FROM audit_analytics.violations_log
             WHERE timestamp >= toDateTime(?)
               AND timestamp < toDateTime(?)
-              %s
+                            AND scan_id IN (%s)
             GROUP BY bucket_start
             ORDER BY bucket_start ASC
-            """.formatted(bucketExpr, hostFilterClauseWithAnd(hostId));
+                        """.formatted(bucketExpr, toInClause(completedScanIds));
 
         List<Map<String, Object>> rows = clickHouseJdbcTemplate.queryForList(
             sql,
-            buildQueryArgs(range, hostId));
+                        buildQueryArgs(range));
 
         List<SeverityTrendPointResponse> items = rows.stream()
             .map(row -> new SeverityTrendPointResponse(
@@ -119,6 +136,11 @@ public class SecurityAnalyticsService {
         TimeRange range = resolveTimeRange(fromRaw, toRaw);
         String bucket = normalizeBucket(bucketRaw);
         validateHostId(hostId);
+        List<Long> completedScanIds = loadCompletedScanIds(range, hostId);
+
+        if (completedScanIds.isEmpty()) {
+            return new SecurityScoreTrendResponse(List.of(), bucket, range.from().toString(), range.to().toString());
+        }
 
         String bucketExpr = bucketExpression(bucket);
         String sql = """
@@ -130,14 +152,14 @@ public class SecurityAnalyticsService {
             FROM audit_analytics.violations_log
             WHERE timestamp >= toDateTime(?)
               AND timestamp < toDateTime(?)
-              %s
+                            AND scan_id IN (%s)
             GROUP BY bucket_start
             ORDER BY bucket_start ASC
-            """.formatted(bucketExpr, hostFilterClauseWithAnd(hostId));
+                        """.formatted(bucketExpr, toInClause(completedScanIds));
 
         List<Map<String, Object>> rows = clickHouseJdbcTemplate.queryForList(
             sql,
-            buildQueryArgs(range, hostId));
+            buildQueryArgs(range));
 
         List<SecurityScoreTrendPointResponse> items = rows.stream()
             .map(row -> new SecurityScoreTrendPointResponse(
@@ -153,6 +175,11 @@ public class SecurityAnalyticsService {
     public TopHostRiskResponse getTopHosts(String fromRaw, String toRaw, Integer limitRaw) {
         TimeRange range = resolveTimeRange(fromRaw, toRaw);
         int limit = normalizeLimit(limitRaw, 10, 50);
+        List<Long> completedScanIds = loadCompletedScanIds(range, null);
+
+        if (completedScanIds.isEmpty()) {
+            return new TopHostRiskResponse(List.of(), range.from().toString(), range.to().toString(), limit);
+        }
 
         String sql = """
             SELECT
@@ -167,15 +194,15 @@ public class SecurityAnalyticsService {
             FROM audit_analytics.violations_log
             WHERE timestamp >= toDateTime(?)
               AND timestamp < toDateTime(?)
+                            AND scan_id IN (%s)
             GROUP BY host_id
             ORDER BY total_failed DESC, critical_count DESC, high_count DESC
             LIMIT %d
-            """.formatted(limit);
+                        """.formatted(toInClause(completedScanIds), limit);
 
         List<Map<String, Object>> rows = clickHouseJdbcTemplate.queryForList(
             sql,
-            CH_DATE_TIME.format(range.from()),
-            CH_DATE_TIME.format(range.to()));
+            buildQueryArgs(range));
 
         Map<Long, String> hostNames = loadHostNames();
 
@@ -202,6 +229,11 @@ public class SecurityAnalyticsService {
         TimeRange range = resolveTimeRange(fromRaw, toRaw);
         int limit = normalizeLimit(limitRaw, 10, 100);
         validateHostId(hostId);
+        List<Long> completedScanIds = loadCompletedScanIds(range, hostId);
+
+        if (completedScanIds.isEmpty()) {
+            return new TopRulesResponse(List.of(), range.from().toString(), range.to().toString(), limit);
+        }
 
         String sql = """
             SELECT
@@ -213,16 +245,16 @@ public class SecurityAnalyticsService {
             FROM audit_analytics.violations_log
             WHERE timestamp >= toDateTime(?)
               AND timestamp < toDateTime(?)
-              %s
+                            AND scan_id IN (%s)
             GROUP BY rule_code
             HAVING failed_count > 0
             ORDER BY failed_count DESC, affected_scans DESC
             LIMIT %d
-            """.formatted(hostFilterClauseWithAnd(hostId), limit);
+                        """.formatted(toInClause(completedScanIds), limit);
 
         List<Map<String, Object>> rows = clickHouseJdbcTemplate.queryForList(
             sql,
-            buildQueryArgs(range, hostId));
+            buildQueryArgs(range));
 
         List<TopRuleItemResponse> items = rows.stream()
             .map(row -> new TopRuleItemResponse(
@@ -236,22 +268,19 @@ public class SecurityAnalyticsService {
         return new TopRulesResponse(items, range.from().toString(), range.to().toString(), limit);
     }
 
-    private String hostFilterClause(Long hostId) {
-        return hostId == null ? "" : " AND host_id = ?";
-    }
-
-    private String hostFilterClauseWithAnd(Long hostId) {
-        return hostId == null ? "" : "AND host_id = ?";
-    }
-
-    private Object[] buildQueryArgs(TimeRange range, Long hostId) {
+    private Object[] buildQueryArgs(TimeRange range) {
         List<Object> args = new ArrayList<>();
         args.add(CH_DATE_TIME.format(range.from()));
         args.add(CH_DATE_TIME.format(range.to()));
-        if (hostId != null) {
-            args.add(hostId);
-        }
         return args.toArray();
+    }
+
+    private List<Long> loadCompletedScanIds(TimeRange range, Long hostId) {
+        return scanRepository.findCompletedScanIdsByRange(range.from(), range.to(), hostId);
+    }
+
+    private String toInClause(List<Long> ids) {
+        return ids.stream().map(String::valueOf).collect(Collectors.joining(","));
     }
 
     private TimeRange resolveTimeRange(String fromRaw, String toRaw) {
