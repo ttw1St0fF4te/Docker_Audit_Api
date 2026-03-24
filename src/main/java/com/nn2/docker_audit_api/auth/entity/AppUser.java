@@ -25,14 +25,26 @@ public class AppUser {
 	@Column(nullable = false, unique = true, length = 64)
 	private String username;
 
-	@Column(name = "full_name", nullable = false, length = 160)
-	private String fullName;
+	@Column(name = "first_name", nullable = false, length = 100)
+	private String firstName;
+
+	@Column(name = "last_name", nullable = false, length = 100)
+	private String lastName;
+
+	@Column(name = "email", nullable = false, unique = true, length = 160)
+	private String email;
 
 	@Column(name = "password_hash", nullable = false, length = 255)
 	private String passwordHash;
 
 	@Column(nullable = false)
 	private boolean enabled = true;
+
+	@Column(name = "must_change_password", nullable = false)
+	private boolean mustChangePassword = false;
+
+	@Column(name = "password_changed_at")
+	private Instant passwordChangedAt;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "role_id", nullable = false)
@@ -72,12 +84,9 @@ public class AppUser {
 		this.username = username;
 	}
 
-	public String getFullName() {
-		return fullName;
-	}
-
-	public void setFullName(String fullName) {
-		this.fullName = fullName;
+	public String getDisplayName() {
+		String combined = ((firstName == null ? "" : firstName.trim()) + " " + (lastName == null ? "" : lastName.trim())).trim();
+		return combined.isEmpty() ? username : combined;
 	}
 
 	public String getPasswordHash() {
@@ -88,12 +97,52 @@ public class AppUser {
 		this.passwordHash = passwordHash;
 	}
 
+	public String getFirstName() {
+		return firstName;
+	}
+
+	public void setFirstName(String firstName) {
+		this.firstName = firstName;
+	}
+
+	public String getLastName() {
+		return lastName;
+	}
+
+	public void setLastName(String lastName) {
+		this.lastName = lastName;
+	}
+
+	public String getEmail() {
+		return email;
+	}
+
+	public void setEmail(String email) {
+		this.email = email;
+	}
+
 	public boolean isEnabled() {
 		return enabled;
 	}
 
 	public void setEnabled(boolean enabled) {
 		this.enabled = enabled;
+	}
+
+	public boolean isMustChangePassword() {
+		return mustChangePassword;
+	}
+
+	public void setMustChangePassword(boolean mustChangePassword) {
+		this.mustChangePassword = mustChangePassword;
+	}
+
+	public Instant getPasswordChangedAt() {
+		return passwordChangedAt;
+	}
+
+	public void setPasswordChangedAt(Instant passwordChangedAt) {
+		this.passwordChangedAt = passwordChangedAt;
 	}
 
 	public AppRole getRole() {

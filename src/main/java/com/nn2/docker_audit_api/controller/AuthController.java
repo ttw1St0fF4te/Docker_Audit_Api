@@ -46,7 +46,7 @@ public class AuthController {
 		}
 
 		var token = jwtService.createToken(user);
-		JwtPrincipal principal = new JwtPrincipal(user.getId(), user.getUsername(), user.getFullName(), user.getRole().getCode());
+		JwtPrincipal principal = new JwtPrincipal(user.getId(), user.getUsername(), user.getDisplayName(), user.getRole().getCode());
 		return toResponse(principal, token.value(), token.expiresAt().toString());
 	}
 

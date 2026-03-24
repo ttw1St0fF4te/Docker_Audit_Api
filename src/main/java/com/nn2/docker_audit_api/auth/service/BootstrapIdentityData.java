@@ -30,12 +30,18 @@ public class BootstrapIdentityData implements ApplicationRunner {
 	@Override
 	@Transactional
 	public void run(ApplicationArguments args) {
-		ensureUser("admin", "Супер-администратор", "admin123", RoleCode.SUPER_ADMIN);
-		ensureUser("engineer", "Инженер безопасности", "engineer123", RoleCode.SECURITY_ENGINEER);
-		ensureUser("developer", "Разработчик", "developer123", RoleCode.DEVELOPER);
+		ensureUser("admin", "Супер", "администратор", "admin@placeholder.local", "admin123", RoleCode.SUPER_ADMIN);
+		ensureUser("engineer", "Инженер", "безопасности", "engineer@placeholder.local", "engineer123", RoleCode.SECURITY_ENGINEER);
+		ensureUser("developer", "Разработчик", "", "developer@placeholder.local", "developer123", RoleCode.DEVELOPER);
 	}
 
-	private void ensureUser(String username, String fullName, String rawPassword, RoleCode roleCode) {
+	private void ensureUser(
+			String username,
+			String firstName,
+			String lastName,
+			String email,
+			String rawPassword,
+			RoleCode roleCode) {
 		if (appUserRepository.existsByUsername(username)) {
 			return;
 		}
@@ -45,7 +51,10 @@ public class BootstrapIdentityData implements ApplicationRunner {
 
 		AppUser user = new AppUser();
 		user.setUsername(username);
-		user.setFullName(fullName);
+		user.setFirstName(firstName);
+		user.setLastName(lastName);
+		user.setEmail(email);
+		user.setMustChangePassword(false);
 		user.setPasswordHash(passwordEncoder.encode(rawPassword));
 		user.setRole(role);
 		user.setEnabled(true);

@@ -49,7 +49,7 @@ public class JwtService {
 			.expiration(Date.from(expiresAt))
 			.claim(CLAIM_UID, user.getId())
 			.claim(CLAIM_ROLE, user.getRole().getCode().name())
-			.claim(CLAIM_FULL_NAME, user.getFullName())
+			.claim(CLAIM_FULL_NAME, user.getDisplayName())
 			.signWith(secretKey)
 			.compact();
 

@@ -1,0 +1,66 @@
+databaseChangeLog:
+  - changeSet:
+      id: 013-super-admin-user-stage1
+      author: keluch
+      changes:
+        - addColumn:
+            tableName: app_user
+            columns:
+              - column:
+                  name: first_name
+                  type: VARCHAR(100)
+                  defaultValue: ''
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_name
+                  type: VARCHAR(100)
+                  defaultValue: ''
+                  constraints:
+                    nullable: false
+              - column:
+                  name: email
+                  type: VARCHAR(160)
+              - column:
+                  name: must_change_password
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: password_changed_at
+                  type: TIMESTAMP
+
+        - sql:
+            sql: |
+              UPDATE app_user
+              SET
+                first_name = CASE
+                  WHEN trim(full_name) = '' THEN username
+                  ELSE split_part(trim(full_name), ' ', 1)
+                END,
+                last_name = CASE
+                  WHEN trim(full_name) = '' OR position(' ' in trim(full_name)) = 0 THEN ''
+                  ELSE trim(substr(trim(full_name), position(' ' in trim(full_name)) + 1))
+                END
+              WHERE first_name = '' AND last_name = '';
+
+        - sql:
+            sql: |
+              UPDATE app_user
+              SET email = username || '@placeholder.local'
+              WHERE email IS NULL OR trim(email) = '';
+
+        - addNotNullConstraint:
+            tableName: app_user
+            columnName: email
+            columnDataType: VARCHAR(160)
+
+        - addUniqueConstraint:
+            tableName: app_user
+            columnNames: email
+            constraintName: uk_app_user_email
+
+        - dropColumn:
+            tableName: app_user
+            columnName: full_name

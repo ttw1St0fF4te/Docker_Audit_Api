@@ -15,7 +15,7 @@ public class DatabaseUserDetails implements UserDetails {
 	private final Long id;
 	private final String username;
 	private final String password;
-	private final String fullName;
+	private final String displayName;
 	private final RoleCode role;
 	private final boolean enabled;
 
@@ -23,7 +23,7 @@ public class DatabaseUserDetails implements UserDetails {
 		this.id = user.getId();
 		this.username = user.getUsername();
 		this.password = user.getPasswordHash();
-		this.fullName = user.getFullName();
+		this.displayName = user.getDisplayName();
 		this.role = user.getRole().getCode();
 		this.enabled = user.isEnabled();
 	}
@@ -32,8 +32,12 @@ public class DatabaseUserDetails implements UserDetails {
 		return id;
 	}
 
+	public String getDisplayName() {
+		return displayName;
+	}
+
 	public String getFullName() {
-		return fullName;
+		return displayName;
 	}
 
 	public RoleCode getRole() {
