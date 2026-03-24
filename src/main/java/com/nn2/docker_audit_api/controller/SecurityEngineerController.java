@@ -23,6 +23,7 @@ import com.nn2.docker_audit_api.securityengineer.docker.model.ContainerSnapshot;
 import com.nn2.docker_audit_api.securityengineer.dto.AuditRunRequest;
 import com.nn2.docker_audit_api.securityengineer.dto.AuditRunResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.AuditStatusResponse;
+import com.nn2.docker_audit_api.securityengineer.dto.AuditStatusesPageResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.AuditViolationSummaryResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.ContainerCisAuditResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.RecentAuditsResponse;
@@ -81,6 +82,20 @@ public class SecurityEngineerController {
 	public RecentAuditsResponse recentAudits() {
 		List<AuditStatusResponse> items = auditService.getRecentStatuses();
 		return new RecentAuditsResponse(items, (long) items.size());
+	}
+
+	@GetMapping("/audits")
+	public AuditStatusesPageResponse searchAudits(
+			@RequestParam(name = "page", required = false) Integer page,
+			@RequestParam(name = "size", required = false) Integer size,
+			@RequestParam(name = "scanId", required = false) Long scanId,
+			@RequestParam(name = "hostId", required = false) Long hostId,
+			@RequestParam(name = "status", required = false) String status,
+			@RequestParam(name = "from", required = false) String from,
+			@RequestParam(name = "to", required = false) String to,
+			@RequestParam(name = "sortBy", required = false) String sortBy,
+			@RequestParam(name = "sortDir", required = false) String sortDir) {
+		return auditService.searchStatuses(page, size, scanId, hostId, status, from, to, sortBy, sortDir);
 	}
 
 	@GetMapping("/audits/{id:\\d+}/summary")

@@ -10,6 +10,11 @@ import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.nn2.docker_audit_api.securityengineer.dto.AuditStatusResponse;
+import com.nn2.docker_audit_api.securityengineer.dto.AuditStatusesPageResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.AuditViolationSummaryResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.ContainerCisAuditResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.CisRuleCheckResultResponse;
@@ -101,6 +107,71 @@ public class AuditService {
         return scanRepository.findTop20ByOrderByStartedAtDesc().stream()
             .map(this::toStatus)
             .toList();
+    }
+
+    public AuditStatusesPageResponse searchStatuses(
+            Integer page,
+            Integer size,
+            Long scanId,
+            Long hostId,
+            String status,
+            String from,
+            String to,
+            String sortBy,
+            String sortDir) {
+        int safePage = normalizePage(page);
+        int safeSize = normalizeSize(size);
+        String safeSortBy = normalizeSortBy(sortBy);
+        Sort.Direction direction = normalizeSortDirection(sortDir);
+
+        if (scanId != null && scanId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scanId должен быть положительным");
+        }
+
+        if (hostId != null && hostId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "hostId должен быть положительным");
+        }
+
+        Instant fromInstant = parseInstantOrNull(from, "from");
+        Instant toInstant = parseInstantOrNull(to, "to");
+        if (fromInstant != null && toInstant != null && !fromInstant.isBefore(toInstant)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Параметр from должен быть меньше to");
+        }
+
+        Specification<ScanEntity> spec = Specification.where(null);
+
+        if (scanId != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("id"), scanId));
+        }
+
+        if (hostId != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("hostId"), hostId));
+        }
+
+        if (status != null && !status.isBlank()) {
+            String normalized = status.trim().toUpperCase(Locale.ROOT);
+            if (!normalized.equals("RUNNING") && !normalized.equals("COMPLETED") && !normalized.equals("FAILED")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status должен быть RUNNING, COMPLETED или FAILED");
+            }
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), normalized));
+        }
+
+        if (fromInstant != null) {
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("startedAt"), fromInstant));
+        }
+
+        if (toInstant != null) {
+            spec = spec.and((root, query, cb) -> cb.lessThan(root.get("startedAt"), toInstant));
+        }
+
+        Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(direction, safeSortBy));
+        Page<ScanEntity> result = scanRepository.findAll(spec, pageable);
+
+        List<AuditStatusResponse> items = result.getContent().stream()
+            .map(this::toStatus)
+            .toList();
+
+        return new AuditStatusesPageResponse(items, result.getTotalElements(), safePage, safeSize);
     }
 
     public AuditViolationSummaryResponse getSummary(Long scanId) {
@@ -264,6 +335,58 @@ public class AuditService {
 
     private String toIso(Instant instant) {
         return instant == null ? null : Timestamp.from(instant).toInstant().toString();
+    }
+
+    private int normalizePage(Integer page) {
+        if (page == null || page < 0) {
+            return 0;
+        }
+        return page;
+    }
+
+    private int normalizeSize(Integer size) {
+        if (size == null) {
+            return 20;
+        }
+        if (size < 1 || size > 200) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "size должен быть в диапазоне 1..200");
+        }
+        return size;
+    }
+
+    private String normalizeSortBy(String sortBy) {
+        if (sortBy == null || sortBy.isBlank()) {
+            return "startedAt";
+        }
+
+        return switch (sortBy.trim()) {
+            case "id", "hostId", "status", "startedAt", "finishedAt", "totalViolations" -> sortBy.trim();
+            default -> throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "sortBy должен быть одним из: id, hostId, status, startedAt, finishedAt, totalViolations");
+        };
+    }
+
+    private Sort.Direction normalizeSortDirection(String sortDir) {
+        if (sortDir == null || sortDir.isBlank()) {
+            return Sort.Direction.DESC;
+        }
+        try {
+            return Sort.Direction.valueOf(sortDir.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sortDir должен быть ASC или DESC");
+        }
+    }
+
+    private Instant parseInstantOrNull(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Некорректный параметр " + fieldName + ": ожидается ISO-8601");
+        }
     }
 
     private record ViolationRow(

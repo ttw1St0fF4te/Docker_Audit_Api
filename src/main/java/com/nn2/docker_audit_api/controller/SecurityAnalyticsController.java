@@ -2,6 +2,8 @@ package com.nn2.docker_audit_api.controller;
 
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,7 +13,12 @@ import com.nn2.docker_audit_api.securityengineer.dto.analytics.SecurityScoreTren
 import com.nn2.docker_audit_api.securityengineer.dto.analytics.SeverityTrendResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopHostRiskResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopRulesResponse;
+import com.nn2.docker_audit_api.securityengineer.dto.reports.ReportGenerateRequest;
+import com.nn2.docker_audit_api.securityengineer.dto.reports.ReportGenerateResponse;
 import com.nn2.docker_audit_api.securityengineer.service.SecurityAnalyticsService;
+import com.nn2.docker_audit_api.securityengineer.service.SecurityReportService;
+
+import jakarta.validation.Valid;
 
 @Validated
 @RestController
@@ -19,9 +26,13 @@ import com.nn2.docker_audit_api.securityengineer.service.SecurityAnalyticsServic
 public class SecurityAnalyticsController {
 
     private final SecurityAnalyticsService securityAnalyticsService;
+    private final SecurityReportService securityReportService;
 
-    public SecurityAnalyticsController(SecurityAnalyticsService securityAnalyticsService) {
+    public SecurityAnalyticsController(
+            SecurityAnalyticsService securityAnalyticsService,
+            SecurityReportService securityReportService) {
         this.securityAnalyticsService = securityAnalyticsService;
+        this.securityReportService = securityReportService;
     }
 
     @GetMapping("/analytics/overview")
@@ -65,5 +76,16 @@ public class SecurityAnalyticsController {
             @RequestParam(name = "limit", required = false) Integer limit,
             @RequestParam(name = "hostId", required = false) Long hostId) {
         return securityAnalyticsService.getTopRules(from, to, limit, hostId);
+    }
+
+    @PostMapping("/analytics/reports/generate")
+    public ReportGenerateResponse generateReport(@RequestBody @Valid ReportGenerateRequest request) {
+        return securityReportService.generate(
+            request.scope(),
+            request.format(),
+            request.from(),
+            request.to(),
+            request.bucket(),
+            request.hostId());
     }
 }

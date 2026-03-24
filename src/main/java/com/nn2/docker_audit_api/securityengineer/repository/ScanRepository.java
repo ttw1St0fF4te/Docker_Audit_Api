@@ -4,12 +4,13 @@ import java.util.List;
 import java.time.Instant;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.nn2.docker_audit_api.securityengineer.entity.ScanEntity;
 
-public interface ScanRepository extends JpaRepository<ScanEntity, Long> {
+public interface ScanRepository extends JpaRepository<ScanEntity, Long>, JpaSpecificationExecutor<ScanEntity> {
 
     List<ScanEntity> findTop20ByOrderByStartedAtDesc();
 
