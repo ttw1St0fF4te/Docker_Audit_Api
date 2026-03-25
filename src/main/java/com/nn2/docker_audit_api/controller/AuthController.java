@@ -13,11 +13,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.nn2.docker_audit_api.auth.dto.AuthResponse;
+import com.nn2.docker_audit_api.auth.dto.ActivatePasswordRequest;
 import com.nn2.docker_audit_api.auth.jwt.JwtPrincipal;
 import com.nn2.docker_audit_api.auth.jwt.JwtService;
 import com.nn2.docker_audit_api.auth.dto.LoginRequest;
 import com.nn2.docker_audit_api.auth.model.RoleCode;
 import com.nn2.docker_audit_api.auth.repository.AppUserRepository;
+import com.nn2.docker_audit_api.admin.service.AdminUserService;
 
 import jakarta.validation.Valid;
 
@@ -29,11 +31,17 @@ public class AuthController {
 	private final AppUserRepository appUserRepository;
 	private final PasswordEncoder passwordEncoder;
  	private final JwtService jwtService;
+	private final AdminUserService adminUserService;
 
-	public AuthController(AppUserRepository appUserRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
+	public AuthController(
+			AppUserRepository appUserRepository,
+			PasswordEncoder passwordEncoder,
+			JwtService jwtService,
+			AdminUserService adminUserService) {
 		this.appUserRepository = appUserRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.jwtService = jwtService;
+		this.adminUserService = adminUserService;
 	}
 
 	@PostMapping("/login")
@@ -41,19 +49,40 @@ public class AuthController {
 		var user = appUserRepository.findByUsername(request.username())
 			.orElseThrow(() -> invalidCredentials());
 
-		if (!user.isEnabled() || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+		if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+			throw invalidCredentials();
+		}
+
+		if (user.isMustChangePassword()) {
+			JwtPrincipal principal = new JwtPrincipal(user.getId(), user.getUsername(), user.getDisplayName(), user.getRole().getCode());
+			return toResponse(principal, null, null, "PASSWORD_CHANGE_REQUIRED", "/activate-password");
+		}
+
+		if (!user.isEnabled()) {
 			throw invalidCredentials();
 		}
 
 		var token = jwtService.createToken(user);
 		JwtPrincipal principal = new JwtPrincipal(user.getId(), user.getUsername(), user.getDisplayName(), user.getRole().getCode());
-		return toResponse(principal, token.value(), token.expiresAt().toString());
+		return toResponse(principal, token.value(), token.expiresAt().toString(), "LOGIN_OK", homePath(principal.role()));
+	}
+
+	@PostMapping("/activate-password")
+	public AuthResponse activatePassword(@RequestBody @Valid ActivatePasswordRequest request) {
+		var user = adminUserService.activateTemporaryPassword(
+			request.username().trim(),
+			request.temporaryPassword(),
+			request.newPassword());
+
+		var token = jwtService.createToken(user);
+		JwtPrincipal principal = new JwtPrincipal(user.getId(), user.getUsername(), user.getDisplayName(), user.getRole().getCode());
+		return toResponse(principal, token.value(), token.expiresAt().toString(), "LOGIN_OK", homePath(principal.role()));
 	}
 
 	@GetMapping("/me")
 	public AuthResponse me(Authentication authentication) {
 		JwtPrincipal principal = (JwtPrincipal) authentication.getPrincipal();
-		return toResponse(principal, null, null);
+		return toResponse(principal, null, null, "LOGIN_OK", homePath(principal.role()));
 	}
 
 	@PostMapping("/logout")
@@ -61,7 +90,12 @@ public class AuthController {
 		return ResponseEntity.noContent().build();
 	}
 
-	private AuthResponse toResponse(JwtPrincipal principal, String accessToken, String expiresAt) {
+	private AuthResponse toResponse(
+			JwtPrincipal principal,
+			String accessToken,
+			String expiresAt,
+			String authStatus,
+			String homePath) {
 		RoleCode role = principal.role();
 		return new AuthResponse(
 			principal.id(),
@@ -69,7 +103,8 @@ public class AuthController {
 			principal.fullName(),
 			role.name(),
 			roleLabel(role),
-			homePath(role),
+			homePath,
+			authStatus,
 			accessToken,
 			accessToken == null ? null : "Bearer",
 			expiresAt);

@@ -15,7 +15,12 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 	Optional<AppUser> findByUsername(String username);
 
 	@EntityGraph(attributePaths = "role")
+	Optional<AppUser> findByEmail(String email);
+
+	@EntityGraph(attributePaths = "role")
 	List<AppUser> findByRoleCodeAndEnabledTrue(RoleCode roleCode);
 
 	boolean existsByUsername(String username);
+
+	boolean existsByEmail(String email);
 }

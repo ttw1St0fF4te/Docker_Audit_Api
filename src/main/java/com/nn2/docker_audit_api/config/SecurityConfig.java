@@ -42,7 +42,7 @@ public class SecurityConfig {
 		return http
 			.csrf(AbstractHttpConfigurer::disable)
 			.authorizeHttpRequests(authorize -> authorize
-				.requestMatchers("/error", "/api/health", "/api/auth/login").permitAll()
+				.requestMatchers("/error", "/api/health", "/api/auth/login", "/api/auth/activate-password").permitAll()
 				.requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
 				.requestMatchers("/api/admin/**").hasRole(RoleCode.SUPER_ADMIN.name())
 				.requestMatchers("/api/security/**", "/api/security-engineer/**")

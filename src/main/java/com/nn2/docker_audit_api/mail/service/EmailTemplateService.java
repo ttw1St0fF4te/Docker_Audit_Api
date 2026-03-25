@@ -6,14 +6,14 @@ import org.springframework.stereotype.Service;
 public class EmailTemplateService {
 
 	public String inviteSubject() {
-		return "NN2 Audit Docker: данные для первого входа";
+		return "NN2 Docker Audit: данные для первого входа";
 	}
 
 	public String inviteBody(String username, String temporaryPassword) {
 		return """
 			Здравствуйте!
 			
-			Для вас создана учетная запись в системе NN2 Audit Docker.
+			Для вас создана учетная запись в системе NN2 Docker Audit.
 			
 			Логин: %s
 			Временный пароль: %s
@@ -23,7 +23,7 @@ public class EmailTemplateService {
 	}
 
 	public String resetPasswordSubject() {
-		return "NN2 Audit Docker: временный пароль для восстановления";
+		return "NN2 Docker Audit: временный пароль для восстановления";
 	}
 
 	public String resetPasswordBody(String username, String temporaryPassword) {
@@ -40,7 +40,7 @@ public class EmailTemplateService {
 	}
 
 	public String emailChangeCodeSubject() {
-		return "NN2 Audit Docker: код подтверждения смены email";
+		return "NN2 Docker Audit: код подтверждения смены email";
 	}
 
 	public String emailChangeCodeBody(String code) {
@@ -54,12 +54,12 @@ public class EmailTemplateService {
 	}
 
 	public String vulnerabilityAlertSubject() {
-		return "NN2 Audit Docker: уведомление о найденных уязвимостях";
+		return "NN2 Docker Audit: уведомление о найденных уязвимостях";
 	}
 
 	public String vulnerabilityAlertBody(String message) {
 		return """
-			Системное уведомление NN2 Audit Docker:
+			Системное уведомление NN2 Docker Audit:
 			
 			%s
 			""".formatted(message);
