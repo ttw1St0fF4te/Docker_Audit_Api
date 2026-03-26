@@ -40,6 +40,9 @@ public class AppUser {
 	@Column(nullable = false)
 	private boolean enabled = true;
 
+	@Column(name = "is_deleted", nullable = false)
+	private boolean deleted = false;
+
 	@Column(name = "must_change_password", nullable = false)
 	private boolean mustChangePassword = false;
 
@@ -127,6 +130,14 @@ public class AppUser {
 
 	public void setEnabled(boolean enabled) {
 		this.enabled = enabled;
+	}
+
+	public boolean isDeleted() {
+		return deleted;
+	}
+
+	public void setDeleted(boolean deleted) {
+		this.deleted = deleted;
 	}
 
 	public boolean isMustChangePassword() {

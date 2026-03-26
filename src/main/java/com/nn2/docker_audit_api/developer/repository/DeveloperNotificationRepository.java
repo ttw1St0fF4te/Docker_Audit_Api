@@ -12,4 +12,6 @@ public interface DeveloperNotificationRepository extends JpaRepository<Developer
     List<DeveloperNotificationEntity> findByDeveloperUserIdOrderByCreatedAtDesc(Long developerUserId);
 
     Optional<DeveloperNotificationEntity> findByIdAndDeveloperUserId(Long id, Long developerUserId);
+
+    void deleteByDeveloperUserId(Long developerUserId);
 }

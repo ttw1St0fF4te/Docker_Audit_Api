@@ -19,6 +19,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import com.nn2.docker_audit_api.audit.context.RequestAuditContextFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nn2.docker_audit_api.auth.jwt.JwtAuthenticationFilter;
 import com.nn2.docker_audit_api.auth.model.RoleCode;
@@ -31,10 +32,15 @@ public class SecurityConfig {
 
 	private final ObjectMapper objectMapper;
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
+	private final RequestAuditContextFilter requestAuditContextFilter;
 
-	public SecurityConfig(ObjectMapper objectMapper, JwtAuthenticationFilter jwtAuthenticationFilter) {
+	public SecurityConfig(
+			ObjectMapper objectMapper,
+			JwtAuthenticationFilter jwtAuthenticationFilter,
+			RequestAuditContextFilter requestAuditContextFilter) {
 		this.objectMapper = objectMapper;
 		this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+		this.requestAuditContextFilter = requestAuditContextFilter;
 	}
 
 	@Bean
@@ -63,6 +69,7 @@ public class SecurityConfig {
 				.accessDeniedHandler((request, response, exception) ->
 					writeJsonError(response, HttpStatus.FORBIDDEN, "Доступ запрещен")))
 			.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+			.addFilterAfter(requestAuditContextFilter, JwtAuthenticationFilter.class)
 			.build();
 	}
 

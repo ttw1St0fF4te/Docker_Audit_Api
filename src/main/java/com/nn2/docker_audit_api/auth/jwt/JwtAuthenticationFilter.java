@@ -9,6 +9,8 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.nn2.docker_audit_api.auth.repository.AppUserRepository;
+
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -19,9 +21,11 @@ import jakarta.servlet.http.HttpServletResponse;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 	private final JwtService jwtService;
+	private final AppUserRepository appUserRepository;
 
-	public JwtAuthenticationFilter(JwtService jwtService) {
+	public JwtAuthenticationFilter(JwtService jwtService, AppUserRepository appUserRepository) {
 		this.jwtService = jwtService;
+		this.appUserRepository = appUserRepository;
 	}
 
 	@Override
@@ -37,6 +41,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 		try {
 			var parsed = jwtService.parseToken(token);
+
+			boolean userAllowed = appUserRepository.findById(parsed.principal().id())
+				.map(user -> !user.isDeleted())
+				.orElse(false);
+			if (!userAllowed) {
+				SecurityContextHolder.clearContext();
+				filterChain.doFilter(request, response);
+				return;
+			}
 
 			if (SecurityContextHolder.getContext().getAuthentication() == null) {
 				UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(

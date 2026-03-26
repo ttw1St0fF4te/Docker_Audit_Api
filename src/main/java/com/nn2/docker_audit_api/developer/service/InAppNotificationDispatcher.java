@@ -57,7 +57,7 @@ public class InAppNotificationDispatcher implements NotificationDispatcher {
             + ", LOW=" + low
             + ". Проверьте детали по отчету сканирования.";
 
-        List<AppUser> developers = appUserRepository.findByRoleCodeAndEnabledTrue(RoleCode.DEVELOPER);
+        List<AppUser> developers = appUserRepository.findByRoleCodeAndEnabledTrueAndDeletedFalse(RoleCode.DEVELOPER);
         Instant now = Instant.now();
 
         List<DeveloperNotificationEntity> notifications = developers.stream()

@@ -1,0 +1,73 @@
+databaseChangeLog:
+  - changeSet:
+      id: 015-super-admin-audit-log-stage5
+      author: keluch
+      changes:
+        - createTable:
+            tableName: audit_change_log
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: table_name
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: operation
+                  type: VARCHAR(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: record_pk
+                  type: VARCHAR(128)
+              - column:
+                  name: changed_by
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: changed_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: before_json
+                  type: TEXT
+              - column:
+                  name: after_json
+                  type: TEXT
+              - column:
+                  name: request_id
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: audit_change_log
+            indexName: idx_audit_change_log_changed_at
+            columns:
+              - column:
+                  name: changed_at
+        - createIndex:
+            tableName: audit_change_log
+            indexName: idx_audit_change_log_table_name
+            columns:
+              - column:
+                  name: table_name
+        - createIndex:
+            tableName: audit_change_log
+            indexName: idx_audit_change_log_changed_by
+            columns:
+              - column:
+                  name: changed_by
+        - createIndex:
+            tableName: audit_change_log
+            indexName: idx_audit_change_log_request_id
+            columns:
+              - column:
+                  name: request_id

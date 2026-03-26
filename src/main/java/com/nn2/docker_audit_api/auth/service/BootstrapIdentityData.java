@@ -55,6 +55,7 @@ public class BootstrapIdentityData implements ApplicationRunner {
 		user.setLastName(lastName);
 		user.setEmail(email);
 		user.setMustChangePassword(false);
+		user.setDeleted(false);
 		user.setPasswordHash(passwordEncoder.encode(rawPassword));
 		user.setRole(role);
 		user.setEnabled(true);

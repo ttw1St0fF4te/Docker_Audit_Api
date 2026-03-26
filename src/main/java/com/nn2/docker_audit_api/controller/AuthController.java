@@ -53,6 +53,10 @@ public class AuthController {
 			throw invalidCredentials();
 		}
 
+		if (user.isDeleted()) {
+			throw invalidCredentials();
+		}
+
 		if (user.isMustChangePassword()) {
 			JwtPrincipal principal = new JwtPrincipal(user.getId(), user.getUsername(), user.getDisplayName(), user.getRole().getCode());
 			return toResponse(principal, null, null, "PASSWORD_CHANGE_REQUIRED", "/activate-password");

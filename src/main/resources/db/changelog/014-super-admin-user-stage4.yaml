@@ -1,0 +1,25 @@
+databaseChangeLog:
+  - changeSet:
+      id: 014-super-admin-user-stage4
+      author: keluch
+      changes:
+        - addColumn:
+            tableName: app_user
+            columns:
+              - column:
+                  name: is_deleted
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+        - sql:
+            sql: |
+              UPDATE app_user
+              SET is_deleted = false
+              WHERE is_deleted IS NULL;
+        - createIndex:
+            tableName: app_user
+            indexName: idx_app_user_is_deleted
+            columns:
+              - column:
+                  name: is_deleted

@@ -155,3 +155,9 @@ databaseChangeLog:
 
   - include:
       file: db/changelog/013-super-admin-user-stage1.yaml
+
+  - include:
+      file: db/changelog/014-super-admin-user-stage4.yaml
+
+  - include:
+      file: db/changelog/015-super-admin-audit-log-stage5.yaml

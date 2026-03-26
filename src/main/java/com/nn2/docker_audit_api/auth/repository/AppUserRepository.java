@@ -5,11 +5,12 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import com.nn2.docker_audit_api.auth.entity.AppUser;
 import com.nn2.docker_audit_api.auth.model.RoleCode;
 
-public interface AppUserRepository extends JpaRepository<AppUser, Long> {
+public interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpecificationExecutor<AppUser> {
 
 	@EntityGraph(attributePaths = "role")
 	Optional<AppUser> findByUsername(String username);
@@ -18,7 +19,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 	Optional<AppUser> findByEmail(String email);
 
 	@EntityGraph(attributePaths = "role")
-	List<AppUser> findByRoleCodeAndEnabledTrue(RoleCode roleCode);
+	List<AppUser> findByRoleCodeAndEnabledTrueAndDeletedFalse(RoleCode roleCode);
 
 	boolean existsByUsername(String username);
 

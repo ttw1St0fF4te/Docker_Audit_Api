@@ -3,6 +3,7 @@ package com.nn2.docker_audit_api.securityengineer.service;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,7 @@ import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.nn2.docker_audit_api.audit.context.AuditContextHolder;
 import com.nn2.docker_audit_api.auth.repository.AppUserRepository;
 import com.nn2.docker_audit_api.securityengineer.entity.AuditScheduleEntity;
 import com.nn2.docker_audit_api.securityengineer.repository.AuditScheduleRepository;
@@ -24,33 +26,39 @@ public class AuditScheduleExecutor {
     private final AppUserRepository appUserRepository;
     private final AuditService auditService;
     private final AuditScheduleRepository auditScheduleRepository;
+    private final AuditContextHolder auditContextHolder;
     private final String schedulerUsername;
 
     public AuditScheduleExecutor(
             AppUserRepository appUserRepository,
             AuditService auditService,
             AuditScheduleRepository auditScheduleRepository,
+            AuditContextHolder auditContextHolder,
             @Value("${app.audit.scheduler.username:engineer}") String schedulerUsername) {
         this.appUserRepository = appUserRepository;
         this.auditService = auditService;
         this.auditScheduleRepository = auditScheduleRepository;
+        this.auditContextHolder = auditContextHolder;
         this.schedulerUsername = schedulerUsername;
     }
 
     @Async
     public void runScheduledAudit(Long scheduleId, Long hostId, String cronExpression, Runnable releaseLockAction) {
-        try {
-            Long startedBy = resolveSchedulerUserId();
-            auditService.runAudit(hostId, startedBy);
+        String requestId = UUID.randomUUID().toString();
+        auditContextHolder.runWith(requestId, schedulerUsername, () -> {
+            try {
+                Long startedBy = resolveSchedulerUserId();
+                auditService.runAudit(hostId, startedBy);
 
-            Instant completedAt = Instant.now();
-            updateScheduleAfterAttempt(scheduleId, cronExpression, completedAt);
-        } catch (Exception ex) {
-            log.error("Ошибка автозапуска аудита: scheduleId={}, hostId={}", scheduleId, hostId, ex);
-            updateScheduleAfterAttempt(scheduleId, cronExpression, Instant.now());
-        } finally {
-            releaseLockAction.run();
-        }
+                Instant completedAt = Instant.now();
+                updateScheduleAfterAttempt(scheduleId, cronExpression, completedAt);
+            } catch (Exception ex) {
+                log.error("Ошибка автозапуска аудита: scheduleId={}, hostId={}", scheduleId, hostId, ex);
+                updateScheduleAfterAttempt(scheduleId, cronExpression, Instant.now());
+            } finally {
+                releaseLockAction.run();
+            }
+        });
     }
 
     private Long resolveSchedulerUserId() {
