@@ -12,4 +12,10 @@ public interface AuditScheduleRepository extends JpaRepository<AuditScheduleEnti
     List<AuditScheduleEntity> findByActiveTrueOrderByIdAsc();
 
     Optional<AuditScheduleEntity> findFirstByHostIdOrderByIdDesc(Long hostId);
+
+    List<AuditScheduleEntity> findByHostIdOrderByIdAsc(Long hostId);
+
+    boolean existsByHostIdAndActiveTrue(Long hostId);
+
+    void deleteByHostId(Long hostId);
 }

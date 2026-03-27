@@ -8,5 +8,9 @@ import com.nn2.docker_audit_api.securityengineer.entity.DockerHostEntity;
 
 public interface DockerHostRepository extends JpaRepository<DockerHostEntity, Long> {
 
-    Optional<DockerHostEntity> findByIdAndActiveTrue(Long id);
+    Optional<DockerHostEntity> findByIdAndActiveTrueAndDeletedFalse(Long id);
+
+    Optional<DockerHostEntity> findByBaseUrlIgnoreCase(String baseUrl);
+
+    boolean existsByBaseUrlIgnoreCase(String baseUrl);
 }

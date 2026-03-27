@@ -161,3 +161,6 @@ databaseChangeLog:
 
   - include:
       file: db/changelog/015-super-admin-audit-log-stage5.yaml
+
+  - include:
+      file: db/changelog/016-super-admin-docker-hosts-stage6.yaml

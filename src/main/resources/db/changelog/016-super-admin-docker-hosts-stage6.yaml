@@ -1,0 +1,56 @@
+databaseChangeLog:
+  - changeSet:
+      id: 016-super-admin-docker-hosts-stage6
+      author: keluch
+      changes:
+        - renameColumn:
+            tableName: docker_hosts
+            oldColumnName: host_url
+            newColumnName: base_url
+            columnDataType: VARCHAR(255)
+        - addColumn:
+            tableName: docker_hosts
+            columns:
+              - column:
+                  name: host_type
+                  type: VARCHAR(32)
+                  defaultValue: LOCAL_SOCKET
+                  constraints:
+                    nullable: false
+              - column:
+                  name: tls_enabled
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_deleted
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+        - sql:
+            sql: |
+              UPDATE docker_hosts
+              SET host_type = CASE
+                  WHEN base_url LIKE 'unix://%' THEN 'LOCAL_SOCKET'
+                  ELSE 'REMOTE_TCP'
+              END,
+                  tls_enabled = false,
+                  is_deleted = false
+              WHERE host_type IS NULL OR tls_enabled IS NULL OR is_deleted IS NULL;
+        - dropUniqueConstraint:
+            tableName: docker_hosts
+            constraintName: uq_docker_hosts_host_url
+        - addUniqueConstraint:
+            tableName: docker_hosts
+            columnNames: base_url
+            constraintName: uq_docker_hosts_base_url
+        - createIndex:
+            tableName: docker_hosts
+            indexName: idx_docker_hosts_deleted_active
+            columns:
+              - column:
+                  name: is_deleted
+              - column:
+                  name: is_active

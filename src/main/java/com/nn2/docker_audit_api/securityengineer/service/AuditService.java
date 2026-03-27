@@ -60,7 +60,7 @@ public class AuditService {
 
     @Transactional
     public ScanEntity createRunningScan(Long hostId, Long startedBy) {
-        DockerHostEntity host = dockerHostRepository.findByIdAndActiveTrue(hostId)
+        DockerHostEntity host = dockerHostRepository.findByIdAndActiveTrueAndDeletedFalse(hostId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Активный Docker-хост не найден"));
 
         ScanEntity scan = new ScanEntity();
@@ -81,10 +81,10 @@ public class AuditService {
         ScanEntity runningScan = createRunningScan(hostId, startedBy);
 
         try {
-            DockerHostEntity host = dockerHostRepository.findByIdAndActiveTrue(hostId)
+            DockerHostEntity host = dockerHostRepository.findByIdAndActiveTrueAndDeletedFalse(hostId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Активный Docker-хост не найден"));
 
-            List<ContainerCisAuditResponse> containerResults = cisRuleEngine.evaluateActiveRules(host.getHostUrl());
+            List<ContainerCisAuditResponse> containerResults = cisRuleEngine.evaluateActiveRules(host.getBaseUrl());
 
             writeViolationsToClickHouse(runningScan.getId(), hostId, containerResults);
             ScanEntity completed = completeScan(runningScan.getId(), containerResults);

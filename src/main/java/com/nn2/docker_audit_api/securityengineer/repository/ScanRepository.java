@@ -16,6 +16,8 @@ public interface ScanRepository extends JpaRepository<ScanEntity, Long>, JpaSpec
 
     boolean existsByHostIdAndStatus(Long hostId, String status);
 
+    boolean existsByHostId(Long hostId);
+
         @Query("""
                 SELECT s.id
                 FROM ScanEntity s

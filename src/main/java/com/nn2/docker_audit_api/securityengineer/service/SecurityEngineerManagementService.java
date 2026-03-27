@@ -98,7 +98,7 @@ public class SecurityEngineerManagementService {
         int safeSize = normalizeSize(size);
 
         List<DockerHostEntity> all = dockerHostRepository.findAll(Sort.by(Sort.Direction.ASC, "id"));
-        Stream<DockerHostEntity> stream = all.stream();
+        Stream<DockerHostEntity> stream = all.stream().filter(host -> !host.isDeleted());
 
         if (active != null) {
             stream = stream.filter(host -> host.isActive() == active);
@@ -117,9 +117,17 @@ public class SecurityEngineerManagementService {
         DockerHostEntity host = dockerHostRepository.findById(request.hostId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Docker-хост не найден"));
 
+        if (host.isDeleted()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Нельзя настраивать расписание для удаленного Docker-хоста");
+        }
+
         String normalizedCron = normalizeCronExpression(request.cronExpression());
         validateCron(normalizedCron, request.cronExpression());
         boolean active = request.active() == null || request.active();
+
+        if (active && !host.isActive()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Нельзя активировать расписание для неактивного Docker-хоста");
+        }
 
         AuditScheduleEntity schedule = auditScheduleRepository.findFirstByHostIdOrderByIdDesc(host.getId())
             .orElseGet(AuditScheduleEntity::new);
@@ -177,10 +185,13 @@ public class SecurityEngineerManagementService {
         return new DockerHostItemResponse(
             host.getId(),
             host.getName(),
-            host.getHostUrl(),
+            host.getBaseUrl(),
+            host.getHostType(),
+            host.isTlsEnabled(),
             host.getAuthType(),
             host.getCertPath(),
             host.isActive(),
+            host.isDeleted(),
             toIso(host.getCreatedAt()));
     }
 

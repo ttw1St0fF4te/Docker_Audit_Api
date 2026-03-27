@@ -20,8 +20,14 @@ public class DockerHostEntity {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(name = "host_url", nullable = false, length = 255)
-    private String hostUrl;
+    @Column(name = "base_url", nullable = false, length = 255)
+    private String baseUrl;
+
+    @Column(name = "host_type", nullable = false, length = 32)
+    private String hostType;
+
+    @Column(name = "tls_enabled", nullable = false)
+    private boolean tlsEnabled;
 
     @Column(name = "auth_type", length = 20)
     private String authType;
@@ -31,6 +37,9 @@ public class DockerHostEntity {
 
     @Column(name = "is_active", nullable = false)
     private boolean active;
+
+    @Column(name = "is_deleted", nullable = false)
+    private boolean deleted;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -51,12 +60,28 @@ public class DockerHostEntity {
         this.name = name;
     }
 
-    public String getHostUrl() {
-        return hostUrl;
+    public String getBaseUrl() {
+        return baseUrl;
     }
 
-    public void setHostUrl(String hostUrl) {
-        this.hostUrl = hostUrl;
+    public void setBaseUrl(String baseUrl) {
+        this.baseUrl = baseUrl;
+    }
+
+    public String getHostType() {
+        return hostType;
+    }
+
+    public void setHostType(String hostType) {
+        this.hostType = hostType;
+    }
+
+    public boolean isTlsEnabled() {
+        return tlsEnabled;
+    }
+
+    public void setTlsEnabled(boolean tlsEnabled) {
+        this.tlsEnabled = tlsEnabled;
     }
 
     public String getAuthType() {
@@ -81,6 +106,14 @@ public class DockerHostEntity {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public boolean isDeleted() {
+        return deleted;
+    }
+
+    public void setDeleted(boolean deleted) {
+        this.deleted = deleted;
     }
 
     public Instant getCreatedAt() {
