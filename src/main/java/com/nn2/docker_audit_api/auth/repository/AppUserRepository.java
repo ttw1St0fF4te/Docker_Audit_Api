@@ -16,7 +16,13 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpec
 	Optional<AppUser> findByUsername(String username);
 
 	@EntityGraph(attributePaths = "role")
+	Optional<AppUser> findByUsernameIgnoreCase(String username);
+
+	@EntityGraph(attributePaths = "role")
 	Optional<AppUser> findByEmail(String email);
+
+	@EntityGraph(attributePaths = "role")
+	Optional<AppUser> findByUsernameIgnoreCaseOrEmailIgnoreCase(String username, String email);
 
 	@EntityGraph(attributePaths = "role")
 	List<AppUser> findByRoleCodeAndEnabledTrueAndDeletedFalse(RoleCode roleCode);

@@ -14,11 +14,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.nn2.docker_audit_api.auth.dto.AuthResponse;
 import com.nn2.docker_audit_api.auth.dto.ActivatePasswordRequest;
+import com.nn2.docker_audit_api.auth.dto.RecoveryActionResponse;
+import com.nn2.docker_audit_api.auth.dto.RecoveryEmailChangeConfirmCodeRequest;
+import com.nn2.docker_audit_api.auth.dto.RecoveryEmailChangeRequestCodeRequest;
+import com.nn2.docker_audit_api.auth.dto.RecoveryEmailChangeVerifyIdentityRequest;
+import com.nn2.docker_audit_api.auth.dto.RecoveryPasswordResetRequest;
 import com.nn2.docker_audit_api.auth.jwt.JwtPrincipal;
 import com.nn2.docker_audit_api.auth.jwt.JwtService;
 import com.nn2.docker_audit_api.auth.dto.LoginRequest;
 import com.nn2.docker_audit_api.auth.model.RoleCode;
 import com.nn2.docker_audit_api.auth.repository.AppUserRepository;
+import com.nn2.docker_audit_api.auth.service.AuthRecoveryService;
 import com.nn2.docker_audit_api.admin.service.AdminUserService;
 
 import jakarta.validation.Valid;
@@ -32,21 +38,25 @@ public class AuthController {
 	private final PasswordEncoder passwordEncoder;
  	private final JwtService jwtService;
 	private final AdminUserService adminUserService;
+	private final AuthRecoveryService authRecoveryService;
 
 	public AuthController(
 			AppUserRepository appUserRepository,
 			PasswordEncoder passwordEncoder,
 			JwtService jwtService,
-			AdminUserService adminUserService) {
+			AdminUserService adminUserService,
+			AuthRecoveryService authRecoveryService) {
 		this.appUserRepository = appUserRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.jwtService = jwtService;
 		this.adminUserService = adminUserService;
+		this.authRecoveryService = authRecoveryService;
 	}
 
 	@PostMapping("/login")
 	public AuthResponse login(@RequestBody @Valid LoginRequest request) {
-		var user = appUserRepository.findByUsername(request.username())
+		String identifier = request.username().trim();
+		var user = appUserRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(identifier, identifier)
 			.orElseThrow(() -> invalidCredentials());
 
 		if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
@@ -92,6 +102,33 @@ public class AuthController {
 	@PostMapping("/logout")
 	public ResponseEntity<Void> logout() {
 		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/recovery/password/reset")
+	public RecoveryActionResponse initiatePasswordReset(@RequestBody @Valid RecoveryPasswordResetRequest request) {
+		return authRecoveryService.initiatePasswordReset(request.identifier());
+	}
+
+	@PostMapping("/recovery/email/change/request-code")
+	public RecoveryActionResponse requestEmailChangeCode(
+			@RequestBody @Valid RecoveryEmailChangeRequestCodeRequest request) {
+		return authRecoveryService.requestEmailChangeCode(request.oldEmail(), request.newEmail());
+	}
+
+	@PostMapping("/recovery/email/change/confirm-code")
+	public RecoveryActionResponse confirmEmailChangeCode(
+			@RequestBody @Valid RecoveryEmailChangeConfirmCodeRequest request) {
+		return authRecoveryService.confirmEmailChangeByCode(request.oldEmail(), request.newEmail(), request.code());
+	}
+
+	@PostMapping("/recovery/email/change/verify-identity")
+	public RecoveryActionResponse verifyIdentityAndChangeEmail(
+			@RequestBody @Valid RecoveryEmailChangeVerifyIdentityRequest request) {
+		return authRecoveryService.changeEmailByIdentity(
+			request.username(),
+			request.lastName(),
+			request.role(),
+			request.newEmail());
 	}
 
 	private AuthResponse toResponse(

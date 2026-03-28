@@ -261,6 +261,54 @@ public class AdminUserService {
 		return appUserRepository.save(user);
 	}
 
+	@Transactional
+	public boolean initiatePasswordResetByIdentifier(String identifier) {
+		if (identifier == null || identifier.isBlank()) {
+			return false;
+		}
+
+		String normalized = identifier.trim();
+		var optionalUser = appUserRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(normalized, normalized);
+		if (optionalUser.isEmpty()) {
+			return false;
+		}
+
+		AppUser user = optionalUser.get();
+		if (user.isDeleted()) {
+			return false;
+		}
+
+		applyTemporaryPasswordReset(user);
+		return true;
+	}
+
+	@Transactional
+	public AdminUserItemResponse initiatePasswordResetByUserId(Long userId) {
+		AppUser user = appUserRepository.findById(userId)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Пользователь не найден"));
+
+		if (user.isDeleted()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Нельзя сбросить пароль для удаленного пользователя");
+		}
+
+		applyTemporaryPasswordReset(user);
+		return toItem(user);
+	}
+
+	private void applyTemporaryPasswordReset(AppUser user) {
+		String temporaryPassword = generateTemporaryPassword();
+		user.setPasswordHash(passwordEncoder.encode(temporaryPassword));
+		user.setMustChangePassword(true);
+		user.setEnabled(false);
+		user.setPasswordChangedAt(null);
+		appUserRepository.save(user);
+
+		emailSenderService.sendPlainText(
+			user.getEmail(),
+			emailTemplateService.resetPasswordSubject(),
+			emailTemplateService.resetPasswordBody(user.getUsername(), temporaryPassword));
+	}
+
 	private String generateTemporaryPassword() {
 		StringBuilder builder = new StringBuilder(TEMP_PASSWORD_LENGTH);
 		for (int i = 0; i < TEMP_PASSWORD_LENGTH; i++) {

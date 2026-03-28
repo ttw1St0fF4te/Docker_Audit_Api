@@ -36,3 +36,6 @@ build/
 .env
 .env.*
 !.env.example
+
+### macOS Finder ###
+.DS_Store

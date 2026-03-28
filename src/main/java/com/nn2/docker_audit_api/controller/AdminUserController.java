@@ -74,4 +74,9 @@ public class AdminUserController {
 	public AdminUserItemResponse restoreUser(@PathVariable("id") Long id) {
 		return adminUserService.restoreUser(id);
 	}
+
+	@PostMapping("/{id}/initiate-password-reset")
+	public AdminUserItemResponse initiatePasswordReset(@PathVariable("id") Long id) {
+		return adminUserService.initiatePasswordResetByUserId(id);
+	}
 }

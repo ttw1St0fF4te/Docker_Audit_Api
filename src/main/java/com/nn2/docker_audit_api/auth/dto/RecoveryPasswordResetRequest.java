@@ -2,9 +2,7 @@ package com.nn2.docker_audit_api.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
-public record LoginRequest(
+public record RecoveryPasswordResetRequest(
 		@NotBlank(message = "Укажите username или email")
-		String username,
-		@NotBlank(message = "Укажите пароль")
-		String password) {
+		String identifier) {
 }
