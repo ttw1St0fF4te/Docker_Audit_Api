@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record ActivatePasswordRequest(
-		@NotBlank(message = "Укажите логин")
+		@NotBlank(message = "Укажите username или email")
 		String username,
 		@NotBlank(message = "Укажите временный пароль")
 		String temporaryPassword,

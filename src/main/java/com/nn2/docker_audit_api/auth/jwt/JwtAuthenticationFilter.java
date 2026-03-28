@@ -43,7 +43,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			var parsed = jwtService.parseToken(token);
 
 			boolean userAllowed = appUserRepository.findById(parsed.principal().id())
-				.map(user -> !user.isDeleted())
+				.map(user -> !user.isDeleted() && user.isEnabled() && !user.isMustChangePassword())
 				.orElse(false);
 			if (!userAllowed) {
 				SecurityContextHolder.clearContext();

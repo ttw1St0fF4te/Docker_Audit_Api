@@ -231,8 +231,9 @@ public class AdminUserService {
 	}
 
 	@Transactional
-	public AppUser activateTemporaryPassword(String username, String temporaryPassword, String newPassword) {
-		AppUser user = appUserRepository.findByUsername(username)
+	public AppUser activateTemporaryPassword(String identifier, String temporaryPassword, String newPassword) {
+		String normalizedIdentifier = identifier == null ? "" : identifier.trim();
+		AppUser user = appUserRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(normalizedIdentifier, normalizedIdentifier)
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Неверный логин или пароль"));
 
 		if (user.isDeleted()) {
