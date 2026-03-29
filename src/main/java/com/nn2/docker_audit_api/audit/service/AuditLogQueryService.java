@@ -49,6 +49,7 @@ public class AuditLogQueryService {
             String tableName,
             String operation,
             String changedBy,
+            String requestId,
             String from,
             String to) {
         int safePage = normalizePage(page);
@@ -62,6 +63,7 @@ public class AuditLogQueryService {
             tableName,
             operation,
             changedBy,
+            requestId,
             fromInstant,
             toInstant);
 
@@ -75,11 +77,16 @@ public class AuditLogQueryService {
         return new AuditChangeLogPageResponse(items, result.getTotalElements(), safePage, safeSize);
     }
 
+    public List<String> listTableNames() {
+        return auditChangeLogRepository.findDistinctTableNames();
+    }
+
     public byte[] exportCsv(
             Integer limit,
             String tableName,
             String operation,
             String changedBy,
+            String requestId,
             String from,
             String to) {
         int safeLimit = normalizeExportLimit(limit);
@@ -92,6 +99,7 @@ public class AuditLogQueryService {
             tableName,
             operation,
             changedBy,
+            requestId,
             fromInstant,
             toInstant);
 
@@ -130,6 +138,7 @@ public class AuditLogQueryService {
             String tableName,
             String operation,
             String changedBy,
+            String requestId,
             Instant from,
             Instant to) {
         Specification<AuditChangeLogEntity> specification = Specification.where(null);
@@ -150,6 +159,11 @@ public class AuditLogQueryService {
             String normalizedUser = "%" + changedBy.trim().toLowerCase(Locale.ROOT) + "%";
             specification = specification.and((root, query, cb) ->
                 cb.like(cb.lower(root.get("changedBy")), normalizedUser));
+        }
+
+        if (requestId != null && !requestId.isBlank()) {
+            String normalizedRequestId = requestId.trim();
+            specification = specification.and((root, query, cb) -> cb.equal(root.get("requestId"), normalizedRequestId));
         }
 
         if (from != null) {

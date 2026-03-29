@@ -32,9 +32,15 @@ public class AdminAuditLogController {
             @RequestParam(name = "tableName", required = false) String tableName,
             @RequestParam(name = "operation", required = false) String operation,
             @RequestParam(name = "changedBy", required = false) String changedBy,
+            @RequestParam(name = "requestId", required = false) String requestId,
             @RequestParam(name = "from", required = false) String from,
             @RequestParam(name = "to", required = false) String to) {
-        return auditLogQueryService.search(page, size, tableName, operation, changedBy, from, to);
+        return auditLogQueryService.search(page, size, tableName, operation, changedBy, requestId, from, to);
+    }
+
+    @GetMapping("/tables")
+    public java.util.List<String> listTableNames() {
+        return auditLogQueryService.listTableNames();
     }
 
     @GetMapping(value = "/export", produces = "text/csv")
@@ -43,9 +49,10 @@ public class AdminAuditLogController {
             @RequestParam(name = "tableName", required = false) String tableName,
             @RequestParam(name = "operation", required = false) String operation,
             @RequestParam(name = "changedBy", required = false) String changedBy,
+            @RequestParam(name = "requestId", required = false) String requestId,
             @RequestParam(name = "from", required = false) String from,
             @RequestParam(name = "to", required = false) String to) {
-        byte[] content = auditLogQueryService.exportCsv(limit, tableName, operation, changedBy, from, to);
+        byte[] content = auditLogQueryService.exportCsv(limit, tableName, operation, changedBy, requestId, from, to);
 
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=audit-change-log.csv")

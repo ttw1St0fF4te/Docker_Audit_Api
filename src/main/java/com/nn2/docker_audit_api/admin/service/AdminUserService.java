@@ -30,6 +30,8 @@ import com.nn2.docker_audit_api.developer.repository.DeveloperNotificationReposi
 import com.nn2.docker_audit_api.mail.service.EmailSenderService;
 import com.nn2.docker_audit_api.mail.service.EmailTemplateService;
 
+import jakarta.persistence.criteria.JoinType;
+
 @Service
 public class AdminUserService {
 
@@ -59,6 +61,7 @@ public class AdminUserService {
 		this.developerNotificationRepository = developerNotificationRepository;
 	}
 
+	@Transactional(readOnly = true)
 	public AdminUsersPageResponse listUsers(
 			Integer page,
 			Integer size,
@@ -83,6 +86,12 @@ public class AdminUserService {
 		if (role != null) {
 			spec = spec.and((root, query, cb) -> cb.equal(root.join("role").get("code"), role));
 		}
+
+		spec = spec.and((root, query, cb) -> {
+			root.fetch("role", JoinType.LEFT);
+			query.distinct(true);
+			return cb.conjunction();
+		});
 
 		if (enabled != null) {
 			spec = spec.and((root, query, cb) -> cb.equal(root.get("enabled"), enabled));
