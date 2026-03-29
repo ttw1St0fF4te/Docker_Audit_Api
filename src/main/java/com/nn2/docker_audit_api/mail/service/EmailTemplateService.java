@@ -64,4 +64,44 @@ public class EmailTemplateService {
 			%s
 			""".formatted(message);
 	}
+
+	public String developerVulnerabilitySubject(Long scanId, String severity) {
+		return "NN2 Docker Audit: обнаружены " + severity + " нарушения по скану #" + scanId;
+	}
+
+	public String developerVulnerabilityBody(
+			Long scanId,
+			Long hostId,
+			int critical,
+			int high,
+			int medium,
+			int low,
+			int totalViolations,
+			Integer totalContainers) {
+		return """
+			Здравствуйте!
+			
+			В скане #%d обнаружены нарушения безопасности.
+			
+			Хост ID: %d
+			Контейнеров в скане: %d
+			Всего нарушений: %d
+			
+			Разбивка по severity:
+			- CRITICAL: %d
+			- HIGH: %d
+			- MEDIUM: %d
+			- LOW: %d
+			
+			Откройте раздел "Уведомления" в веб-интерфейсе для просмотра деталей.
+			""".formatted(
+				scanId,
+				hostId,
+				totalContainers == null ? 0 : totalContainers,
+				totalViolations,
+				critical,
+				high,
+				medium,
+				low);
+	}
 }

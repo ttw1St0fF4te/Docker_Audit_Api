@@ -1,8 +1,12 @@
 package com.nn2.docker_audit_api.developer.service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.mail.MailException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,6 +15,8 @@ import com.nn2.docker_audit_api.auth.model.RoleCode;
 import com.nn2.docker_audit_api.auth.repository.AppUserRepository;
 import com.nn2.docker_audit_api.developer.entity.DeveloperNotificationEntity;
 import com.nn2.docker_audit_api.developer.repository.DeveloperNotificationRepository;
+import com.nn2.docker_audit_api.mail.service.EmailSenderService;
+import com.nn2.docker_audit_api.mail.service.EmailTemplateService;
 import com.nn2.docker_audit_api.securityengineer.entity.ScanEntity;
 import com.nn2.docker_audit_api.securityengineer.model.NotificationSeverityLevel;
 import com.nn2.docker_audit_api.securityengineer.service.NotificationSettingsService;
@@ -18,17 +24,25 @@ import com.nn2.docker_audit_api.securityengineer.service.NotificationSettingsSer
 @Component
 public class InAppNotificationDispatcher implements NotificationDispatcher {
 
+    private static final Logger log = LoggerFactory.getLogger(InAppNotificationDispatcher.class);
+
     private final AppUserRepository appUserRepository;
     private final DeveloperNotificationRepository developerNotificationRepository;
     private final NotificationSettingsService notificationSettingsService;
+    private final EmailSenderService emailSenderService;
+    private final EmailTemplateService emailTemplateService;
 
     public InAppNotificationDispatcher(
             AppUserRepository appUserRepository,
             DeveloperNotificationRepository developerNotificationRepository,
-            NotificationSettingsService notificationSettingsService) {
+            NotificationSettingsService notificationSettingsService,
+            EmailSenderService emailSenderService,
+            EmailTemplateService emailTemplateService) {
         this.appUserRepository = appUserRepository;
         this.developerNotificationRepository = developerNotificationRepository;
         this.notificationSettingsService = notificationSettingsService;
+        this.emailSenderService = emailSenderService;
+        this.emailTemplateService = emailTemplateService;
     }
 
     @Override
@@ -66,7 +80,65 @@ public class InAppNotificationDispatcher implements NotificationDispatcher {
 
         if (!notifications.isEmpty()) {
             developerNotificationRepository.saveAll(notifications);
+            sendDeveloperEmails(scan, developers, severity, critical, high, medium, low);
         }
+    }
+
+    private void sendDeveloperEmails(
+            ScanEntity scan,
+            List<AppUser> developers,
+            String severity,
+            int critical,
+            int high,
+            int medium,
+            int low) {
+        String subject = emailTemplateService.developerVulnerabilitySubject(scan.getId(), severity);
+        String body = emailTemplateService.developerVulnerabilityBody(
+            scan.getId(),
+            scan.getHostId(),
+            critical,
+            high,
+            medium,
+            low,
+            safe(scan.getTotalViolations()),
+            scan.getTotalContainers());
+
+        int successCount = 0;
+        int failedCount = 0;
+        List<String> successRecipients = new ArrayList<>();
+        List<String> failedRecipients = new ArrayList<>();
+
+        for (AppUser developer : developers) {
+            String recipientMeta = "userId=" + developer.getId() + ",email=" + developer.getEmail();
+            try {
+                boolean sent = emailSenderService.sendPlainText(developer.getEmail(), subject, body);
+                if (sent) {
+                    successCount++;
+                    successRecipients.add(recipientMeta);
+                } else {
+                    failedCount++;
+                    failedRecipients.add(recipientMeta + ",reason=MAIL_DISABLED_OR_SKIPPED");
+                    log.warn("Email notification was not sent for scan {} to {}", scan.getId(), recipientMeta);
+                }
+            } catch (MailException ex) {
+                failedCount++;
+                failedRecipients.add(recipientMeta + ",reason=" + ex.getClass().getSimpleName());
+                log.warn("Email notification failed for scan {} to {}", scan.getId(), recipientMeta, ex);
+            } catch (RuntimeException ex) {
+                failedCount++;
+                failedRecipients.add(recipientMeta + ",reason=" + ex.getClass().getSimpleName());
+                log.warn("Unexpected email failure for scan {} to {}", scan.getId(), recipientMeta, ex);
+            }
+        }
+
+        log.info(
+            "Developer email fan-out finished: scanId={}, recipients={}, successCount={}, failedCount={}, successRecipients={}, failedRecipients={}",
+            scan.getId(),
+            developers.size(),
+            successCount,
+            failedCount,
+            successRecipients,
+            failedRecipients);
     }
 
     private DeveloperNotificationEntity buildNotification(
