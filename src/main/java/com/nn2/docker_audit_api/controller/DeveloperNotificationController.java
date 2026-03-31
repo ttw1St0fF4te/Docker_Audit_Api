@@ -3,6 +3,7 @@ package com.nn2.docker_audit_api.controller;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.nn2.docker_audit_api.auth.jwt.JwtPrincipal;
 import com.nn2.docker_audit_api.developer.dto.DeveloperNotificationItemResponse;
+import com.nn2.docker_audit_api.developer.dto.DeveloperNotificationsReadAllResponse;
 import com.nn2.docker_audit_api.developer.dto.DeveloperNotificationsResponse;
 import com.nn2.docker_audit_api.developer.service.DeveloperNotificationService;
 
@@ -31,17 +33,41 @@ public class DeveloperNotificationController {
             Authentication authentication,
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size,
+            @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "read", required = false) Boolean read,
             @RequestParam(name = "severity", required = false) String severity) {
         JwtPrincipal principal = (JwtPrincipal) authentication.getPrincipal();
-        return developerNotificationService.listNotifications(principal.id(), page, size, read, severity);
+        return developerNotificationService.listNotifications(principal.id(), page, size, status, read, severity);
     }
 
-    @PatchMapping("/{id}/read")
+    @GetMapping("/{id}")
+    public DeveloperNotificationItemResponse getNotification(
+            Authentication authentication,
+            @PathVariable("id") Long id) {
+        JwtPrincipal principal = (JwtPrincipal) authentication.getPrincipal();
+        return developerNotificationService.getNotification(principal.id(), id);
+    }
+
+    @PostMapping("/{id}/read")
     public DeveloperNotificationItemResponse markRead(
             Authentication authentication,
             @PathVariable("id") Long id) {
         JwtPrincipal principal = (JwtPrincipal) authentication.getPrincipal();
         return developerNotificationService.markAsRead(principal.id(), id);
+    }
+
+    // Backward-compatible endpoint for existing clients.
+    @PatchMapping("/{id}/read")
+    public DeveloperNotificationItemResponse markReadLegacy(
+            Authentication authentication,
+            @PathVariable("id") Long id) {
+        JwtPrincipal principal = (JwtPrincipal) authentication.getPrincipal();
+        return developerNotificationService.markAsRead(principal.id(), id);
+    }
+
+    @PostMapping("/read-all")
+    public DeveloperNotificationsReadAllResponse markAllRead(Authentication authentication) {
+        JwtPrincipal principal = (JwtPrincipal) authentication.getPrincipal();
+        return developerNotificationService.markAllRead(principal.id());
     }
 }

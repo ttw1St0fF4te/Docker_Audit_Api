@@ -2,6 +2,7 @@ package com.nn2.docker_audit_api.securityengineer.repository;
 
 import java.util.List;
 import java.time.Instant;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -17,6 +18,10 @@ public interface ScanRepository extends JpaRepository<ScanEntity, Long>, JpaSpec
     boolean existsByHostIdAndStatus(Long hostId, String status);
 
     boolean existsByHostId(Long hostId);
+
+    Optional<ScanEntity> findTopByStatusOrderByStartedAtDesc(String status);
+
+    Optional<ScanEntity> findTopByHostIdAndStatusOrderByStartedAtDesc(Long hostId, String status);
 
         @Query("""
                 SELECT s.id

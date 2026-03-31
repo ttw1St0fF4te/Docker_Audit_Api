@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.nn2.docker_audit_api.developer.dto.DeveloperNotificationItemResponse;
+import com.nn2.docker_audit_api.developer.dto.DeveloperNotificationsReadAllResponse;
 import com.nn2.docker_audit_api.developer.dto.DeveloperNotificationsResponse;
 import com.nn2.docker_audit_api.developer.entity.DeveloperNotificationEntity;
 import com.nn2.docker_audit_api.developer.repository.DeveloperNotificationRepository;
@@ -32,18 +33,20 @@ public class DeveloperNotificationService {
             Long developerUserId,
             Integer page,
             Integer size,
+            String status,
             Boolean read,
             String severity) {
         int safePage = normalizePage(page);
         int safeSize = normalizeSize(size);
+        Boolean resolvedRead = resolveReadFilter(status, read);
 
         List<DeveloperNotificationEntity> all = developerNotificationRepository
             .findByDeveloperUserIdOrderByCreatedAtDesc(developerUserId);
 
         Stream<DeveloperNotificationEntity> stream = all.stream();
 
-        if (read != null) {
-            stream = stream.filter(item -> item.isRead() == read);
+        if (resolvedRead != null) {
+            stream = stream.filter(item -> item.isRead() == resolvedRead);
         }
 
         if (severity != null && !severity.isBlank()) {
@@ -57,6 +60,13 @@ public class DeveloperNotificationService {
             .toList();
 
         return new DeveloperNotificationsResponse(items, filtered.size(), safePage, safeSize);
+    }
+
+    public DeveloperNotificationItemResponse getNotification(Long developerUserId, Long notificationId) {
+        DeveloperNotificationEntity notification = developerNotificationRepository
+            .findByIdAndDeveloperUserId(notificationId, developerUserId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Уведомление не найдено"));
+        return toItem(notification);
     }
 
     @Transactional
@@ -74,6 +84,25 @@ public class DeveloperNotificationService {
         return toItem(notification);
     }
 
+    @Transactional
+    public DeveloperNotificationsReadAllResponse markAllRead(Long developerUserId) {
+        List<DeveloperNotificationEntity> unread = developerNotificationRepository
+            .findByDeveloperUserIdAndReadFalseOrderByCreatedAtDesc(developerUserId);
+
+        if (unread.isEmpty()) {
+            return new DeveloperNotificationsReadAllResponse(0);
+        }
+
+        Instant now = Instant.now();
+        unread.forEach(item -> {
+            item.setRead(true);
+            item.setReadAt(now);
+        });
+        developerNotificationRepository.saveAll(unread);
+
+        return new DeveloperNotificationsReadAllResponse(unread.size());
+    }
+
     private DeveloperNotificationItemResponse toItem(DeveloperNotificationEntity entity) {
         return new DeveloperNotificationItemResponse(
             entity.getId(),
@@ -81,9 +110,27 @@ public class DeveloperNotificationService {
             entity.getSeverity(),
             entity.getTitle(),
             entity.getMessage(),
+            entity.getMessage(),
+            entity.isRead(),
             entity.isRead(),
             toIso(entity.getCreatedAt()),
             toIso(entity.getReadAt()));
+    }
+
+    private Boolean resolveReadFilter(String status, Boolean read) {
+        if (status == null || status.isBlank()) {
+            return read;
+        }
+
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "UNREAD" -> Boolean.FALSE;
+            case "READ" -> Boolean.TRUE;
+            case "ALL" -> null;
+            default -> throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "status должен быть одним из: UNREAD, READ, ALL");
+        };
     }
 
     private <T> List<T> paginate(List<T> items, int page, int size) {

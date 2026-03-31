@@ -60,6 +60,37 @@ public class DockerClientService {
 		throw new DockerConnectionException(message, new IllegalStateException(message));
 	}
 
+	public String resolveReachableHostUrl(String hostUrl) {
+		String effectiveHost = (hostUrl == null || hostUrl.isBlank())
+			? dockerAuditProperties.getDefaultHostUrl()
+			: hostUrl;
+
+		List<String> candidates = resolveHostCandidates(effectiveHost);
+		List<String> failures = new ArrayList<>();
+
+		for (String candidate : candidates) {
+			if (isUnixHost(candidate) && !unixSocketExists(candidate)) {
+				failures.add(candidate + " -> сокет не найден");
+				continue;
+			}
+
+			try {
+				try (var client = dockerClientFactory.createClient(
+					candidate,
+					dockerAuditProperties.getConnectTimeout(),
+					dockerAuditProperties.getReadTimeout())) {
+					client.listContainersCmd().withShowAll(true).exec();
+					return candidate;
+				}
+			} catch (Exception ex) {
+				failures.add(candidate + " -> " + summarizeException(ex));
+			}
+		}
+
+		String message = "Не удалось подключиться к Docker-хосту. Проверенные варианты: " + String.join("; ", failures);
+		throw new DockerConnectionException(message, new IllegalStateException(message));
+	}
+
 	private List<ContainerSnapshot> querySnapshots(String hostUrl) throws Exception {
 		try (var client = dockerClientFactory.createClient(
 			hostUrl,

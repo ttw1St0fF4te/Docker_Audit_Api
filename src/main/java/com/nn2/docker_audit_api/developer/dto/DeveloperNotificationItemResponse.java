@@ -5,7 +5,9 @@ public record DeveloperNotificationItemResponse(
         Long scanId,
         String severity,
         String title,
+        String summary,
         String message,
+        boolean isRead,
         boolean read,
         String createdAt,
         String readAt) {
