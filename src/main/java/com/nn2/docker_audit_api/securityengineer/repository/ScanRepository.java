@@ -36,6 +36,19 @@ public interface ScanRepository extends JpaRepository<ScanEntity, Long>, JpaSpec
                         @Param("to") Instant to,
                         @Param("hostId") Long hostId);
 
+            @Query("""
+                SELECT s
+                FROM ScanEntity s
+                WHERE s.status = 'COMPLETED'
+                AND s.startedAt >= :from
+                AND s.startedAt < :to
+                AND (:hostId IS NULL OR s.hostId = :hostId)
+                """)
+            List<ScanEntity> findCompletedScansByRange(
+                @Param("from") Instant from,
+                @Param("to") Instant to,
+                @Param("hostId") Long hostId);
+
         @Query("""
                 SELECT COUNT(s)
                 FROM ScanEntity s

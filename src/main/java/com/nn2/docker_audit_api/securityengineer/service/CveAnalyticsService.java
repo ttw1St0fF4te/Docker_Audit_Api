@@ -27,34 +27,34 @@ import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopHostRiskRespon
 import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopRuleItemResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopRulesResponse;
 import com.nn2.docker_audit_api.securityengineer.entity.DockerHostEntity;
-import com.nn2.docker_audit_api.securityengineer.entity.ScanEntity;
+import com.nn2.docker_audit_api.securityengineer.entity.CveScanEntity;
+import com.nn2.docker_audit_api.securityengineer.repository.CveScanRepository;
 import com.nn2.docker_audit_api.securityengineer.repository.DockerHostRepository;
-import com.nn2.docker_audit_api.securityengineer.repository.ScanRepository;
 
 @Service
-public class SecurityAnalyticsService {
+public class CveAnalyticsService {
 
     private static final DateTimeFormatter CH_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
         .withZone(ZoneOffset.UTC);
 
     private final JdbcTemplate clickHouseJdbcTemplate;
     private final DockerHostRepository dockerHostRepository;
-    private final ScanRepository scanRepository;
+    private final CveScanRepository cveScanRepository;
 
-    public SecurityAnalyticsService(
+    public CveAnalyticsService(
             @Qualifier("clickHouseJdbcTemplate") JdbcTemplate clickHouseJdbcTemplate,
             DockerHostRepository dockerHostRepository,
-            ScanRepository scanRepository) {
+            CveScanRepository cveScanRepository) {
         this.clickHouseJdbcTemplate = clickHouseJdbcTemplate;
         this.dockerHostRepository = dockerHostRepository;
-        this.scanRepository = scanRepository;
+        this.cveScanRepository = cveScanRepository;
     }
 
     public AnalyticsOverviewResponse getOverview(String fromRaw, String toRaw, Long hostId) {
         TimeRange range = resolveTimeRange(fromRaw, toRaw);
         validateHostId(hostId);
-        long totalScans = scanRepository.countAllByRange(range.from(), range.to(), hostId);
-        List<ScanEntity> completedScans = loadCompletedScans(range, hostId);
+        long totalScans = cveScanRepository.countAllByRange(range.from(), range.to(), hostId);
+        List<CveScanEntity> completedScans = loadCompletedScans(range, hostId);
 
         if (completedScans.isEmpty()) {
             return new AnalyticsOverviewResponse(totalScans, 0, 0, 0, 0, 0, 0, 100.0d);
@@ -65,15 +65,17 @@ public class SecurityAnalyticsService {
         long high = 0L;
         long medium = 0L;
         long low = 0L;
-        for (ScanEntity scan : completedScans) {
-            totalFailed += safeInt(scan.getTotalViolations());
+        long unknown = 0L;
+        for (CveScanEntity scan : completedScans) {
+            totalFailed += safeInt(scan.getTotalVulnerabilities());
             critical += safeInt(scan.getCriticalCount());
             high += safeInt(scan.getHighCount());
             medium += safeInt(scan.getMediumCount());
             low += safeInt(scan.getLowCount());
+            unknown += safeInt(scan.getUnknownCount());
         }
 
-        double score = calculateWeightedScore(totalFailed, critical, high, medium, low);
+        double score = calculateWeightedScore(totalFailed, critical, high, medium, low, unknown);
 
         return new AnalyticsOverviewResponse(
             totalScans,
@@ -90,21 +92,21 @@ public class SecurityAnalyticsService {
         TimeRange range = resolveTimeRange(fromRaw, toRaw);
         String bucket = normalizeBucket(bucketRaw);
         validateHostId(hostId);
-        List<ScanEntity> completedScans = loadCompletedScans(range, hostId);
+        List<CveScanEntity> completedScans = loadCompletedScans(range, hostId);
 
         if (completedScans.isEmpty()) {
             return new SeverityTrendResponse(List.of(), bucket, range.from().toString(), range.to().toString());
         }
 
         Map<String, SeverityAccumulator> buckets = new HashMap<>();
-        for (ScanEntity scan : completedScans) {
+        for (CveScanEntity scan : completedScans) {
             String key = formatBucket(scan.getStartedAt(), bucket);
             SeverityAccumulator acc = buckets.computeIfAbsent(key, (ignored) -> new SeverityAccumulator());
             acc.critical += safeInt(scan.getCriticalCount());
             acc.high += safeInt(scan.getHighCount());
             acc.medium += safeInt(scan.getMediumCount());
             acc.low += safeInt(scan.getLowCount());
-            acc.total += safeInt(scan.getTotalViolations());
+            acc.total += safeInt(scan.getTotalVulnerabilities());
         }
 
         List<SeverityTrendPointResponse> items = buckets.entrySet().stream()
@@ -125,35 +127,30 @@ public class SecurityAnalyticsService {
         TimeRange range = resolveTimeRange(fromRaw, toRaw);
         String bucket = normalizeBucket(bucketRaw);
         validateHostId(hostId);
-        List<ScanEntity> completedScans = loadCompletedScans(range, hostId);
+        List<CveScanEntity> completedScans = loadCompletedScans(range, hostId);
 
         if (completedScans.isEmpty()) {
             return new SecurityScoreTrendResponse(List.of(), bucket, range.from().toString(), range.to().toString());
         }
 
-        List<Long> scanIds = completedScans.stream().map(ScanEntity::getId).toList();
-        Map<Long, Long> totalChecksByScan = loadTotalChecksByScanIds(scanIds);
-
         Map<String, ScoreAccumulator> buckets = new HashMap<>();
-        for (ScanEntity scan : completedScans) {
+        for (CveScanEntity scan : completedScans) {
             String key = formatBucket(scan.getStartedAt(), bucket);
             ScoreAccumulator acc = buckets.computeIfAbsent(key, (ignored) -> new ScoreAccumulator());
-            long totalFailed = safeInt(scan.getTotalViolations());
-            long totalChecks = totalChecksByScan.getOrDefault(scan.getId(), totalFailed);
-            acc.totalFailed += totalFailed;
-            acc.totalChecks += totalChecks;
+            acc.total += safeInt(scan.getTotalVulnerabilities());
             acc.critical += safeInt(scan.getCriticalCount());
             acc.high += safeInt(scan.getHighCount());
             acc.medium += safeInt(scan.getMediumCount());
             acc.low += safeInt(scan.getLowCount());
+            acc.unknown += safeInt(scan.getUnknownCount());
         }
 
         List<SecurityScoreTrendPointResponse> items = buckets.entrySet().stream()
             .sorted(Map.Entry.comparingByKey())
             .map(entry -> {
                 ScoreAccumulator acc = entry.getValue();
-                double score = calculateWeightedScore(acc.totalFailed, acc.critical, acc.high, acc.medium, acc.low);
-                return new SecurityScoreTrendPointResponse(entry.getKey(), score, acc.totalChecks, acc.totalFailed);
+                double score = calculateWeightedScore(acc.total, acc.critical, acc.high, acc.medium, acc.low, acc.unknown);
+                return new SecurityScoreTrendPointResponse(entry.getKey(), score, acc.total, acc.total);
             })
             .toList();
 
@@ -163,21 +160,22 @@ public class SecurityAnalyticsService {
     public TopHostRiskResponse getTopHosts(String fromRaw, String toRaw, Integer limitRaw) {
         TimeRange range = resolveTimeRange(fromRaw, toRaw);
         int limit = normalizeLimit(limitRaw, 10, 50);
-        List<ScanEntity> completedScans = loadCompletedScans(range, null);
+        List<CveScanEntity> completedScans = loadCompletedScans(range, null);
 
         if (completedScans.isEmpty()) {
             return new TopHostRiskResponse(List.of(), range.from().toString(), range.to().toString(), limit);
         }
 
         Map<Long, HostAccumulator> hosts = new HashMap<>();
-        for (ScanEntity scan : completedScans) {
+        for (CveScanEntity scan : completedScans) {
             HostAccumulator acc = hosts.computeIfAbsent(scan.getHostId(), (ignored) -> new HostAccumulator());
             acc.scans += 1;
-            acc.total += safeInt(scan.getTotalViolations());
+            acc.total += safeInt(scan.getTotalVulnerabilities());
             acc.critical += safeInt(scan.getCriticalCount());
             acc.high += safeInt(scan.getHighCount());
             acc.medium += safeInt(scan.getMediumCount());
             acc.low += safeInt(scan.getLowCount());
+            acc.unknown += safeInt(scan.getUnknownCount());
         }
 
         Map<Long, String> hostNames = loadHostNames();
@@ -185,7 +183,7 @@ public class SecurityAnalyticsService {
         List<TopHostRiskItemResponse> items = hosts.entrySet().stream()
             .map(entry -> {
                 HostAccumulator acc = entry.getValue();
-                double score = calculateWeightedScore(acc.total, acc.critical, acc.high, acc.medium, acc.low);
+                double score = calculateWeightedScore(acc.total, acc.critical, acc.high, acc.medium, acc.low, acc.unknown);
                 Long hostId = entry.getKey();
                 return new TopHostRiskItemResponse(
                     hostId,
@@ -217,24 +215,19 @@ public class SecurityAnalyticsService {
 
         String sql = """
             SELECT
-                rule_code,
-                any(rule_name) AS rule_name,
-                toInt64(sumIf(1, passed = 0)) AS failed_count,
-                toInt64(uniqExactIf(scan_id, passed = 0)) AS affected_scans,
-                toInt64(uniqExactIf(container_id, passed = 0)) AS affected_containers
-            FROM audit_analytics.violations_log
-            WHERE timestamp >= toDateTime(?)
-              AND timestamp < toDateTime(?)
-                            AND scan_id IN (%s)
-            GROUP BY rule_code
-            HAVING failed_count > 0
+                vulnerability_id AS rule_code,
+                any(vulnerability_title) AS rule_name,
+                toInt64(count()) AS failed_count,
+                toInt64(uniqExact(scan_id)) AS affected_scans,
+                toInt64(uniqExact(image_name)) AS affected_containers
+            FROM audit_analytics.cve_vulnerabilities_log
+            WHERE scan_id IN (%s)
+            GROUP BY vulnerability_id
             ORDER BY failed_count DESC, affected_scans DESC
             LIMIT %d
-                        """.formatted(toInClause(completedScanIds), limit);
+            """.formatted(toInClause(completedScanIds), limit);
 
-        List<Map<String, Object>> rows = clickHouseJdbcTemplate.queryForList(
-            sql,
-            buildQueryArgs(range));
+        List<Map<String, Object>> rows = clickHouseJdbcTemplate.queryForList(sql);
 
         List<TopRuleItemResponse> items = rows.stream()
             .map(row -> new TopRuleItemResponse(
@@ -256,31 +249,11 @@ public class SecurityAnalyticsService {
     }
 
     private List<Long> loadCompletedScanIds(TimeRange range, Long hostId) {
-        return scanRepository.findCompletedScanIdsByRange(range.from(), range.to(), hostId);
+        return cveScanRepository.findCompletedScanIdsByRange(range.from(), range.to(), hostId);
     }
 
-    private Map<Long, Long> loadTotalChecksByScanIds(List<Long> scanIds) {
-        if (scanIds == null || scanIds.isEmpty()) {
-            return Map.of();
-        }
-
-        String sql = """
-            SELECT scan_id, toInt64(count()) AS total_checks
-            FROM audit_analytics.violations_log
-            WHERE scan_id IN (%s)
-            GROUP BY scan_id
-            """.formatted(toInClause(scanIds));
-
-        List<Map<String, Object>> rows = clickHouseJdbcTemplate.queryForList(sql);
-        Map<Long, Long> result = new HashMap<>();
-        for (Map<String, Object> row : rows) {
-            result.put(asLong(row.get("scan_id")), asLong(row.get("total_checks")));
-        }
-        return result;
-    }
-
-    private List<ScanEntity> loadCompletedScans(TimeRange range, Long hostId) {
-        return scanRepository.findCompletedScansByRange(range.from(), range.to(), hostId);
+    private List<CveScanEntity> loadCompletedScans(TimeRange range, Long hostId) {
+        return cveScanRepository.findCompletedScansByRange(range.from(), range.to(), hostId);
     }
 
     private String toInClause(List<Long> ids) {
@@ -320,8 +293,8 @@ public class SecurityAnalyticsService {
 
     private String bucketExpression(String bucket) {
         return bucket.equals("HOUR")
-            ? "formatDateTime(toStartOfHour(timestamp), '%Y-%m-%dT%H:00:00Z')"
-            : "formatDateTime(toStartOfDay(timestamp), '%Y-%m-%dT00:00:00Z')";
+            ? "formatDateTime(toStartOfHour(scan_timestamp), '%Y-%m-%dT%H:00:00Z')"
+            : "formatDateTime(toStartOfDay(scan_timestamp), '%Y-%m-%dT00:00:00Z')";
     }
 
     private String formatBucket(Instant instant, String bucket) {
@@ -380,9 +353,6 @@ public class SecurityAnalyticsService {
         return value == null ? null : value.toString();
     }
 
-    private record TimeRange(Instant from, Instant to) {
-    }
-
     private static class SeverityAccumulator {
         long critical;
         long high;
@@ -392,12 +362,12 @@ public class SecurityAnalyticsService {
     }
 
     private static class ScoreAccumulator {
-        long totalChecks;
-        long totalFailed;
+        long total;
         long critical;
         long high;
         long medium;
         long low;
+        long unknown;
     }
 
     private static class HostAccumulator {
@@ -407,18 +377,22 @@ public class SecurityAnalyticsService {
         long high;
         long medium;
         long low;
+        long unknown;
     }
 
     private long safeInt(Integer value) {
         return value == null ? 0L : value;
     }
 
-    private double calculateWeightedScore(long totalFailed, long critical, long high, long medium, long low) {
+    private double calculateWeightedScore(long totalFailed, long critical, long high, long medium, long low, long unknown) {
         if (totalFailed <= 0) {
             return 100.0d;
         }
-        double weighted = critical * 10.0 + high * 5.0 + medium * 3.0 + low;
+        double weighted = critical * 10.0 + high * 5.0 + medium * 3.0 + low + unknown;
         double max = totalFailed * 10.0;
         return Math.max(0.0d, Math.min(100.0d, Math.round((100.0d - (weighted * 100.0d / max)) * 100.0d) / 100.0d));
+    }
+
+    private record TimeRange(Instant from, Instant to) {
     }
 }
