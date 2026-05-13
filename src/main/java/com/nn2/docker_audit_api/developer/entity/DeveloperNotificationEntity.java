@@ -23,6 +23,9 @@ public class DeveloperNotificationEntity {
     @Column(name = "scan_id", nullable = false)
     private Long scanId;
 
+    @Column(name = "scan_type", nullable = false, length = 10)
+    private String scanType = "CIS";
+
     @Column(nullable = false, length = 20)
     private String severity;
 
@@ -63,6 +66,14 @@ public class DeveloperNotificationEntity {
 
     public void setScanId(Long scanId) {
         this.scanId = scanId;
+    }
+
+    public String getScanType() {
+        return scanType;
+    }
+
+    public void setScanType(String scanType) {
+        this.scanType = scanType;
     }
 
     public String getSeverity() {

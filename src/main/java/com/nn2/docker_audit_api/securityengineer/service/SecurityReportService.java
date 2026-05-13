@@ -30,7 +30,6 @@ import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopHostRiskItemRe
 import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopHostRiskResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopRuleItemResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopRulesResponse;
-import com.nn2.docker_audit_api.securityengineer.dto.reports.ReportGenerateResponse;
 
 @Service
 public class SecurityReportService {
@@ -38,88 +37,97 @@ public class SecurityReportService {
     private static final DateTimeFormatter FILE_TS = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
         .withZone(ZoneId.systemDefault());
 
-    private final SecurityAnalyticsService analyticsService;
+    private static final String FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
 
-    public SecurityReportService(SecurityAnalyticsService analyticsService) {
-        this.analyticsService = analyticsService;
+    private final SecurityAnalyticsService cisAnalyticsService;
+    private final CveAnalyticsService cveAnalyticsService;
+
+    public SecurityReportService(SecurityAnalyticsService cisAnalyticsService, CveAnalyticsService cveAnalyticsService) {
+        this.cisAnalyticsService = cisAnalyticsService;
+        this.cveAnalyticsService = cveAnalyticsService;
     }
 
-    public ReportGenerateResponse generate(
+    public ReportResult generate(
             String scopeRaw,
             String formatRaw,
+            String scanTypeRaw,
             String from,
             String to,
             String bucket,
             Long hostId) {
         Scope scope = parseScope(scopeRaw);
         Format format = parseFormat(formatRaw);
+        ScanType scanType = parseScanType(scanTypeRaw);
 
-        ReportData report = collectReportData(scope, from, to, bucket, hostId);
-
-        Path desktopDir = Path.of(System.getProperty("user.home"), "Desktop", "security-reports");
-        try {
-            Files.createDirectories(desktopDir);
-        } catch (IOException ex) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Не удалось создать каталог отчетов на рабочем столе");
-        }
+        ReportData report = collectReportData(scope, scanType, from, to, bucket, hostId);
 
         String timestamp = FILE_TS.format(Instant.now());
         String extension = format == Format.CSV ? "csv" : "pdf";
-        String fileName = "otchet-bezopasnosti-" + scope.name().toLowerCase(Locale.ROOT) + "-" + timestamp + "." + extension;
-        Path targetPath = desktopDir.resolve(fileName);
+        String fileName = "otchet-bezopasnosti-" + scanType.name().toLowerCase() + "-" + scope.name().toLowerCase(Locale.ROOT) + "-" + timestamp + "." + extension;
 
         try {
+            byte[] content;
+            String contentType;
             if (format == Format.CSV) {
-                Files.writeString(targetPath, buildCsv(report), StandardCharsets.UTF_8);
+                content = buildCsv(report).getBytes(StandardCharsets.UTF_8);
+                contentType = "text/csv;charset=utf-8";
             } else {
-                Files.write(targetPath, buildPdf(report));
+                content = buildPdf(report);
+                contentType = "application/pdf";
             }
+            return new ReportResult(fileName, contentType, content);
         } catch (IOException ex) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Ошибка записи файла отчета: " + ex.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Ошибка формирования отчета: " + ex.getMessage());
         }
-
-        return new ReportGenerateResponse(
-            scope.name(),
-            format.name(),
-            fileName,
-            targetPath.toAbsolutePath().toString(),
-            Instant.now().toString(),
-            "Отчет сформирован и сохранен на рабочий стол");
     }
 
-    private ReportData collectReportData(Scope scope, String from, String to, String bucket, Long hostId) {
+    private ReportData collectReportData(Scope scope, ScanType scanType, String from, String to, String bucket, Long hostId) {
         AnalyticsOverviewResponse overview = null;
         SeverityTrendResponse severityTrend = null;
         SecurityScoreTrendResponse scoreTrend = null;
         TopHostRiskResponse topHosts = null;
         TopRulesResponse topRules = null;
 
-        if (scope == Scope.ALL || scope == Scope.OVERVIEW) {
-            overview = analyticsService.getOverview(from, to, hostId);
+        if (scanType == ScanType.CVE) {
+            if (scope == Scope.ALL || scope == Scope.OVERVIEW) {
+                overview = cveAnalyticsService.getOverview(from, to, hostId);
+            }
+            if (scope == Scope.ALL || scope == Scope.SEVERITY_TREND) {
+                severityTrend = cveAnalyticsService.getSeverityTrend(from, to, bucket, hostId);
+            }
+            if (scope == Scope.ALL || scope == Scope.SECURITY_SCORE_TREND) {
+                scoreTrend = cveAnalyticsService.getSecurityScoreTrend(from, to, bucket, hostId);
+            }
+            if (scope == Scope.ALL || scope == Scope.TOP_HOSTS) {
+                topHosts = cveAnalyticsService.getTopHosts(from, to, 10);
+            }
+            if (scope == Scope.ALL || scope == Scope.TOP_RULES) {
+                topRules = cveAnalyticsService.getTopRules(from, to, 10, hostId);
+            }
+        } else {
+            if (scope == Scope.ALL || scope == Scope.OVERVIEW) {
+                overview = cisAnalyticsService.getOverview(from, to, hostId);
+            }
+            if (scope == Scope.ALL || scope == Scope.SEVERITY_TREND) {
+                severityTrend = cisAnalyticsService.getSeverityTrend(from, to, bucket, hostId);
+            }
+            if (scope == Scope.ALL || scope == Scope.SECURITY_SCORE_TREND) {
+                scoreTrend = cisAnalyticsService.getSecurityScoreTrend(from, to, bucket, hostId);
+            }
+            if (scope == Scope.ALL || scope == Scope.TOP_HOSTS) {
+                topHosts = cisAnalyticsService.getTopHosts(from, to, 10);
+            }
+            if (scope == Scope.ALL || scope == Scope.TOP_RULES) {
+                topRules = cisAnalyticsService.getTopRules(from, to, 10, hostId);
+            }
         }
 
-        if (scope == Scope.ALL || scope == Scope.SEVERITY_TREND) {
-            severityTrend = analyticsService.getSeverityTrend(from, to, bucket, hostId);
-        }
-
-        if (scope == Scope.ALL || scope == Scope.SECURITY_SCORE_TREND) {
-            scoreTrend = analyticsService.getSecurityScoreTrend(from, to, bucket, hostId);
-        }
-
-        if (scope == Scope.ALL || scope == Scope.TOP_HOSTS) {
-            topHosts = analyticsService.getTopHosts(from, to, 10);
-        }
-
-        if (scope == Scope.ALL || scope == Scope.TOP_RULES) {
-            topRules = analyticsService.getTopRules(from, to, 10, hostId);
-        }
-
-        return new ReportData(scope, overview, severityTrend, scoreTrend, topHosts, topRules);
+        return new ReportData(scope, overview, severityTrend, scoreTrend, topHosts, topRules, scanType);
     }
 
     private String buildCsv(ReportData data) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Отчет по безопасности Docker").append('\n');
+        sb.append("Отчет по безопасности Docker (").append(data.scanType.name()).append(")").append('\n');
         sb.append("Раздел,").append(data.scope.name()).append('\n');
         sb.append("Сформирован,").append(Instant.now()).append('\n');
         sb.append('\n');
@@ -200,7 +208,11 @@ public class SecurityReportService {
         List<String> lines = buildPdfLines(report);
 
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Path fontPath = resolveCyrillicFontPath();
+            Path fontPath = Path.of(FONT_PATH);
+            if (!Files.exists(fontPath)) {
+                throw new IOException("Шрифт DejaVuSans не найден: " + FONT_PATH);
+            }
+            
             PDType0Font font;
             try (InputStream fontStream = Files.newInputStream(fontPath)) {
                 font = PDType0Font.load(document, fontStream);
@@ -237,24 +249,9 @@ public class SecurityReportService {
         }
     }
 
-    private Path resolveCyrillicFontPath() {
-        List<Path> candidates = List.of(
-            Path.of(System.getProperty("user.home"), "Library", "Fonts", "Arial Unicode.ttf"),
-            Path.of("/System/Library/Fonts/Supplemental/Arial Unicode.ttf"),
-            Path.of("/System/Library/Fonts/Supplemental/Arial.ttf"));
-
-        for (Path candidate : candidates) {
-            if (Files.exists(candidate)) {
-                return candidate;
-            }
-        }
-
-        throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Не найден системный шрифт для PDF с русским текстом");
-    }
-
     private List<String> buildPdfLines(ReportData data) {
         List<String> lines = new ArrayList<>();
-        lines.add("Отчет по безопасности Docker");
+        lines.add("Отчет по безопасности Docker (" + data.scanType.name() + ")");
         lines.add("Раздел: " + data.scope.name());
         lines.add("Сформирован: " + Instant.now());
         lines.add("");
@@ -343,6 +340,17 @@ public class SecurityReportService {
         }
     }
 
+    private ScanType parseScanType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return ScanType.CIS;
+        }
+        try {
+            return ScanType.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scanType должен быть CIS или CVE");
+        }
+    }
+
     private enum Scope {
         ALL,
         OVERVIEW,
@@ -357,12 +365,21 @@ public class SecurityReportService {
         CSV
     }
 
+    private enum ScanType {
+        CIS,
+        CVE
+    }
+
     private record ReportData(
             Scope scope,
             AnalyticsOverviewResponse overview,
             SeverityTrendResponse severityTrend,
             SecurityScoreTrendResponse scoreTrend,
             TopHostRiskResponse topHosts,
-            TopRulesResponse topRules) {
+            TopRulesResponse topRules,
+            ScanType scanType) {
+    }
+
+    public record ReportResult(String fileName, String contentType, byte[] content) {
     }
 }

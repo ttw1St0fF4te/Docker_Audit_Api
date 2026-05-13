@@ -1,5 +1,6 @@
 package com.nn2.docker_audit_api.controller;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,7 +15,6 @@ import com.nn2.docker_audit_api.securityengineer.dto.analytics.SeverityTrendResp
 import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopHostRiskResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.analytics.TopRulesResponse;
 import com.nn2.docker_audit_api.securityengineer.dto.reports.ReportGenerateRequest;
-import com.nn2.docker_audit_api.securityengineer.dto.reports.ReportGenerateResponse;
 import com.nn2.docker_audit_api.securityengineer.service.SecurityAnalyticsService;
 import com.nn2.docker_audit_api.securityengineer.service.SecurityReportService;
 
@@ -79,13 +79,19 @@ public class SecurityAnalyticsController {
     }
 
     @PostMapping("/analytics/reports/generate")
-    public ReportGenerateResponse generateReport(@RequestBody @Valid ReportGenerateRequest request) {
-        return securityReportService.generate(
+    public ResponseEntity<byte[]> generateReport(@RequestBody @Valid ReportGenerateRequest request) {
+        SecurityReportService.ReportResult result = securityReportService.generate(
             request.scope(),
             request.format(),
+            request.scanType(),
             request.from(),
             request.to(),
             request.bucket(),
             request.hostId());
+
+        return ResponseEntity.ok()
+            .header("Content-Type", result.contentType())
+            .header("Content-Disposition", "attachment; filename=\"" + result.fileName() + "\"")
+            .body(result.content());
     }
 }

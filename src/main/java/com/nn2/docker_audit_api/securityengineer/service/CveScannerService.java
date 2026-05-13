@@ -22,6 +22,7 @@ import com.nn2.docker_audit_api.securityengineer.entity.CveScanEntity;
 import com.nn2.docker_audit_api.securityengineer.entity.DockerHostEntity;
 import com.nn2.docker_audit_api.securityengineer.repository.CveScanRepository;
 import com.nn2.docker_audit_api.securityengineer.repository.DockerHostRepository;
+import com.nn2.docker_audit_api.developer.service.NotificationDispatcher;
 import com.nn2.docker_audit_api.securityengineer.docker.DockerClientService;
 
 @Service
@@ -34,18 +35,21 @@ public class CveScannerService {
     private final DockerClientService dockerClientService;
     private final JdbcTemplate clickHouseJdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final NotificationDispatcher notificationDispatcher;
 
     public CveScannerService(
             CveScanRepository cveScanRepository,
             DockerHostRepository dockerHostRepository,
             DockerClientService dockerClientService,
             @Qualifier("clickHouseJdbcTemplate") JdbcTemplate clickHouseJdbcTemplate,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            NotificationDispatcher notificationDispatcher) {
         this.cveScanRepository = cveScanRepository;
         this.dockerHostRepository = dockerHostRepository;
         this.dockerClientService = dockerClientService;
         this.clickHouseJdbcTemplate = clickHouseJdbcTemplate;
         this.objectMapper = objectMapper;
+        this.notificationDispatcher = notificationDispatcher;
     }
 
     public CveExecutionResult runCveScan(Long hostId, Long startedBy) {
@@ -56,6 +60,7 @@ public class CveScannerService {
             List<CveVulnerabilityRow> rows = scanImagesWithTrivy(imageRefs, hostId, running.getId());
             writeRowsToClickHouse(rows);
             CveScanEntity completed = completeScan(running.getId(), rows, imageRefs.size());
+            notificationDispatcher.dispatchForCompletedCveScan(completed);
             return new CveExecutionResult(completed, null);
         } catch (Exception ex) {
             log.error("CVE scan failed: scanId={}, hostId={}", running.getId(), hostId, ex);
@@ -144,14 +149,10 @@ public class CveScannerService {
 
     private JsonNode runTrivyScan(String imageRef) {
         List<String> command = List.of(
-            "docker-compose",
-            "exec",
-            "-T",
-            "trivy",
             "trivy",
             "image",
             "--server",
-            "http://localhost:4954",
+            "http://trivy:4954",
             "--scanners",
             "vuln",
             "--quiet",

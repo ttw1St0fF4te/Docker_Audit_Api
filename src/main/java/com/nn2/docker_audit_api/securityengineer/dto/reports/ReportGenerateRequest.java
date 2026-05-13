@@ -7,6 +7,7 @@ public record ReportGenerateRequest(
         String scope,
         @NotBlank(message = "format обязателен")
         String format,
+        String scanType,
         String from,
         String to,
         String bucket,

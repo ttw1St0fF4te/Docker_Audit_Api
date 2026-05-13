@@ -3,6 +3,7 @@ package com.nn2.docker_audit_api.developer.dto;
 public record DeveloperNotificationItemResponse(
         Long id,
         Long scanId,
+        String scanType,
         String severity,
         String title,
         String summary,

@@ -107,6 +107,7 @@ public class DeveloperNotificationService {
         return new DeveloperNotificationItemResponse(
             entity.getId(),
             entity.getScanId(),
+            entity.getScanType(),
             entity.getSeverity(),
             entity.getTitle(),
             entity.getMessage(),

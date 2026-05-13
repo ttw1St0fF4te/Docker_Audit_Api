@@ -1,0 +1,17 @@
+databaseChangeLog:
+  - changeSet:
+      id: 018-add-scan-type-to-notifications
+      author: keluch
+      changes:
+        - addColumn:
+            tableName: developer_notifications
+            columns:
+              - column:
+                  name: scan_type
+                  type: VARCHAR(10)
+                  defaultValue: CIS
+                  constraints:
+                    nullable: false
+        - sql:
+            sql: |
+              UPDATE developer_notifications SET scan_type = 'CIS' WHERE scan_type IS NULL;

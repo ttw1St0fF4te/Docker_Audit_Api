@@ -17,6 +17,7 @@ import com.nn2.docker_audit_api.developer.entity.DeveloperNotificationEntity;
 import com.nn2.docker_audit_api.developer.repository.DeveloperNotificationRepository;
 import com.nn2.docker_audit_api.mail.service.EmailSenderService;
 import com.nn2.docker_audit_api.mail.service.EmailTemplateService;
+import com.nn2.docker_audit_api.securityengineer.entity.CveScanEntity;
 import com.nn2.docker_audit_api.securityengineer.entity.ScanEntity;
 import com.nn2.docker_audit_api.securityengineer.model.NotificationSeverityLevel;
 import com.nn2.docker_audit_api.securityengineer.service.NotificationSettingsService;
@@ -63,24 +64,19 @@ public class InAppNotificationDispatcher implements NotificationDispatcher {
         }
 
         String severity = highestPresentSeverity(critical, high, medium, low);
-        String title = "Найдены " + severity + " нарушения в скане #" + scan.getId();
-        String message = "Скан #" + scan.getId()
-            + ": CRITICAL=" + critical
-            + ", HIGH=" + high
-            + ", MEDIUM=" + medium
-            + ", LOW=" + low
-            + ". Проверьте детали по отчету сканирования.";
+        String title = "Найдены " + severity + " нарушения в CIS-скане #" + scan.getId();
+        String message = buildMessage("CIS", scan.getId(), critical, high, medium, low, 0);
 
         List<AppUser> developers = appUserRepository.findByRoleCodeAndEnabledTrueAndDeletedFalse(RoleCode.DEVELOPER);
         Instant now = Instant.now();
 
         List<DeveloperNotificationEntity> notifications = developers.stream()
-            .map(user -> buildNotification(user.getId(), scan.getId(), severity, title, message, now))
+            .map(user -> buildNotification(user.getId(), scan.getId(), "CIS", severity, title, message, now))
             .toList();
 
         if (!notifications.isEmpty()) {
             developerNotificationRepository.saveAll(notifications);
-            sendDeveloperEmails(scan, developers, severity, critical, high, medium, low);
+            sendDeveloperEmails(scan, developers, severity, critical, high, medium, low, 0);
         }
     }
 
@@ -91,18 +87,85 @@ public class InAppNotificationDispatcher implements NotificationDispatcher {
             int critical,
             int high,
             int medium,
-            int low) {
-        String subject = emailTemplateService.developerVulnerabilitySubject(scan.getId(), severity);
+            int low,
+            int unknown) {
+        String subject = emailTemplateService.developerVulnerabilitySubject(scan.getId(), severity, "CIS");
         String body = emailTemplateService.developerVulnerabilityBody(
             scan.getId(),
             scan.getHostId(),
+            "CIS",
             critical,
             high,
             medium,
             low,
             safe(scan.getTotalViolations()),
-            scan.getTotalContainers());
+            scan.getTotalContainers(),
+            unknown);
 
+        sendEmails(scan.getId(), "CIS", developers, subject, body);
+    }
+
+    @Override
+    @Transactional
+    public void dispatchForCompletedCveScan(CveScanEntity scan) {
+        if (scan == null) {
+            return;
+        }
+
+        int critical = safe(scan.getCriticalCount());
+        int high = safe(scan.getHighCount());
+        int medium = safe(scan.getMediumCount());
+        int low = safe(scan.getLowCount());
+        int unknown = safe(scan.getUnknownCount());
+
+        NotificationSeverityLevel threshold = notificationSettingsService.getThreshold();
+        if (!shouldNotify(threshold, critical, high, medium, low)) {
+            return;
+        }
+
+        String severity = highestPresentSeverity(critical, high, medium, low);
+        String title = "Найдены " + severity + " нарушения в CVE-скане #" + scan.getId();
+        String message = buildMessage("CVE", scan.getId(), critical, high, medium, low, unknown);
+
+        List<AppUser> developers = appUserRepository.findByRoleCodeAndEnabledTrueAndDeletedFalse(RoleCode.DEVELOPER);
+        Instant now = Instant.now();
+
+        List<DeveloperNotificationEntity> notifications = developers.stream()
+            .map(user -> buildNotification(user.getId(), scan.getId(), "CVE", severity, title, message, now))
+            .toList();
+
+        if (!notifications.isEmpty()) {
+            developerNotificationRepository.saveAll(notifications);
+            sendDeveloperCveEmails(scan, developers, severity, critical, high, medium, low, unknown);
+        }
+    }
+
+    private void sendDeveloperCveEmails(
+            CveScanEntity scan,
+            List<AppUser> developers,
+            String severity,
+            int critical,
+            int high,
+            int medium,
+            int low,
+            int unknown) {
+        String subject = emailTemplateService.developerVulnerabilitySubject(scan.getId(), severity, "CVE");
+        String body = emailTemplateService.developerVulnerabilityBody(
+            scan.getId(),
+            scan.getHostId(),
+            "CVE",
+            critical,
+            high,
+            medium,
+            low,
+            safe(scan.getTotalVulnerabilities()),
+            safe(scan.getTotalImages()),
+            unknown);
+
+        sendEmails(scan.getId(), "CVE", developers, subject, body);
+    }
+
+    private void sendEmails(Long scanId, String scanType, List<AppUser> developers, String subject, String body) {
         int successCount = 0;
         int failedCount = 0;
         List<String> successRecipients = new ArrayList<>();
@@ -118,22 +181,23 @@ public class InAppNotificationDispatcher implements NotificationDispatcher {
                 } else {
                     failedCount++;
                     failedRecipients.add(recipientMeta + ",reason=MAIL_DISABLED_OR_SKIPPED");
-                    log.warn("Email notification was not sent for scan {} to {}", scan.getId(), recipientMeta);
+                    log.warn("Email notification was not sent for {} scan {} to {}", scanType, scanId, recipientMeta);
                 }
             } catch (MailException ex) {
                 failedCount++;
                 failedRecipients.add(recipientMeta + ",reason=" + ex.getClass().getSimpleName());
-                log.warn("Email notification failed for scan {} to {}", scan.getId(), recipientMeta, ex);
+                log.warn("Email notification failed for {} scan {} to {}", scanType, scanId, recipientMeta, ex);
             } catch (RuntimeException ex) {
                 failedCount++;
                 failedRecipients.add(recipientMeta + ",reason=" + ex.getClass().getSimpleName());
-                log.warn("Unexpected email failure for scan {} to {}", scan.getId(), recipientMeta, ex);
+                log.warn("Unexpected email failure for {} scan {} to {}", scanType, scanId, recipientMeta, ex);
             }
         }
 
         log.info(
-            "Developer email fan-out finished: scanId={}, recipients={}, successCount={}, failedCount={}, successRecipients={}, failedRecipients={}",
-            scan.getId(),
+            "Developer email fan-out finished: {} scanId={}, recipients={}, successCount={}, failedCount={}, successRecipients={}, failedRecipients={}",
+            scanType,
+            scanId,
             developers.size(),
             successCount,
             failedCount,
@@ -141,9 +205,24 @@ public class InAppNotificationDispatcher implements NotificationDispatcher {
             failedRecipients);
     }
 
+    private String buildMessage(String scanType, Long scanId, int critical, int high, int medium, int low, int unknown) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(scanType).append("-скан #").append(scanId).append(": ");
+        sb.append("CRITICAL=").append(critical);
+        sb.append(", HIGH=").append(high);
+        sb.append(", MEDIUM=").append(medium);
+        sb.append(", LOW=").append(low);
+        if (unknown > 0) {
+            sb.append(", UNKNOWN=").append(unknown);
+        }
+        sb.append(". Проверьте детали по отчету сканирования.");
+        return sb.toString();
+    }
+
     private DeveloperNotificationEntity buildNotification(
             Long developerUserId,
             Long scanId,
+            String scanType,
             String severity,
             String title,
             String message,
@@ -151,6 +230,7 @@ public class InAppNotificationDispatcher implements NotificationDispatcher {
         DeveloperNotificationEntity entity = new DeveloperNotificationEntity();
         entity.setDeveloperUserId(developerUserId);
         entity.setScanId(scanId);
+        entity.setScanType(scanType);
         entity.setSeverity(severity);
         entity.setTitle(title);
         entity.setMessage(message);

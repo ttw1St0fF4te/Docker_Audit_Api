@@ -1,6 +1,7 @@
 package com.nn2.docker_audit_api.developer.service;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -78,9 +79,9 @@ class InAppNotificationDispatcherTest {
         when(notificationSettingsService.getThreshold()).thenReturn(NotificationSeverityLevel.LOW);
         when(appUserRepository.findByRoleCodeAndEnabledTrueAndDeletedFalse(RoleCode.DEVELOPER))
             .thenReturn(List.of(developerA, developerB));
-        when(emailTemplateService.developerVulnerabilitySubject(anyLong(), eq("CRITICAL")))
+        when(emailTemplateService.developerVulnerabilitySubject(anyLong(), eq("CRITICAL"), eq("CIS")))
             .thenReturn("subject");
-        when(emailTemplateService.developerVulnerabilityBody(anyLong(), anyLong(), eq(1), eq(0), eq(0), eq(0), eq(1), eq(3)))
+        when(emailTemplateService.developerVulnerabilityBody(anyLong(), anyLong(), eq("CIS"), eq(1), eq(0), eq(0), eq(0), eq(1), eq(3), anyInt()))
             .thenReturn("body");
         when(emailSenderService.sendPlainText(eq("dev1@example.com"), eq("subject"), eq("body"))).thenReturn(true);
         when(emailSenderService.sendPlainText(eq("dev2@example.com"), eq("subject"), eq("body"))).thenReturn(true);
@@ -97,9 +98,9 @@ class InAppNotificationDispatcherTest {
         when(notificationSettingsService.getThreshold()).thenReturn(NotificationSeverityLevel.LOW);
         when(appUserRepository.findByRoleCodeAndEnabledTrueAndDeletedFalse(RoleCode.DEVELOPER))
             .thenReturn(List.of(developerA, developerB));
-        when(emailTemplateService.developerVulnerabilitySubject(anyLong(), eq("CRITICAL")))
+        when(emailTemplateService.developerVulnerabilitySubject(anyLong(), eq("CRITICAL"), eq("CIS")))
             .thenReturn("subject");
-        when(emailTemplateService.developerVulnerabilityBody(anyLong(), anyLong(), eq(1), eq(0), eq(0), eq(0), eq(1), eq(3)))
+        when(emailTemplateService.developerVulnerabilityBody(anyLong(), anyLong(), eq("CIS"), eq(1), eq(0), eq(0), eq(0), eq(1), eq(3), anyInt()))
             .thenReturn("body");
         when(emailSenderService.sendPlainText(eq("dev1@example.com"), eq("subject"), eq("body")))
             .thenThrow(new MailSendException("smtp down"));

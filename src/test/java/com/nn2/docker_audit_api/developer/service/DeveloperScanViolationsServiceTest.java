@@ -70,7 +70,7 @@ class DeveloperScanViolationsServiceTest {
                 new DeveloperViolationItemResponse(1L, "host-1", "container-b", "5.2", "No host pid", "HIGH", "fix B", Timestamp.from(Instant.parse("2026-03-29T09:00:30Z")).toInstant().toString())
             ));
 
-        DeveloperScanViolationsResponse response = service.getViolations(10L, 17L);
+        DeveloperScanViolationsResponse response = service.getViolations(10L, 17L, "CIS");
 
         assertTrue(response.detailsAvailable());
         assertEquals(2, response.violations().size());
@@ -87,7 +87,7 @@ class DeveloperScanViolationsServiceTest {
         when(clickHouseJdbcTemplate.query(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.RowMapper.class)))
             .thenReturn(List.of());
 
-        DeveloperScanViolationsResponse response = service.getViolations(10L, 17L);
+        DeveloperScanViolationsResponse response = service.getViolations(10L, 17L, "CIS");
 
         assertFalse(response.detailsAvailable());
         assertEquals(0, response.violations().size());
@@ -99,7 +99,7 @@ class DeveloperScanViolationsServiceTest {
     void getViolationsRejectsForeignScan() {
         when(developerNotificationRepository.existsByDeveloperUserIdAndScanId(10L, 17L)).thenReturn(false);
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> service.getViolations(10L, 17L));
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> service.getViolations(10L, 17L, "CIS"));
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
     }
